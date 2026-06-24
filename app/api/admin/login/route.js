@@ -2,10 +2,37 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { signToken } from "@/lib/auth";
 
+// Simple in-memory rate limit store
+const loginAttempts = new Map();
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+
 export async function POST(request) {
   try {
     const body = await request.json();
     const { password, recaptchaToken } = body;
+
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || 
+               request.headers.get("x-real-ip") || 
+               "127.0.0.1";
+
+    const now = Date.now();
+    const record = loginAttempts.get(ip) || { attempts: 0, lockUntil: 0 };
+
+    if (record.lockUntil > now) {
+      const remainingMs = record.lockUntil - now;
+      const remainingMins = Math.ceil(remainingMs / (60 * 1000));
+      return Response.json(
+        { error: `Too many attempts. Try again in ${remainingMins} minute${remainingMins > 1 ? "s" : ""}.` },
+        { status: 429 }
+      );
+    }
+
+    if (record.lockUntil > 0 && record.lockUntil <= now) {
+      record.attempts = 0;
+      record.lockUntil = 0;
+      loginAttempts.set(ip, record);
+    }
 
     if (!password) {
       return Response.json({ error: "Password is required" }, { status: 400 });
@@ -73,8 +100,28 @@ export async function POST(request) {
     console.log("--- DEBUG AUTH END ---");
 
     if (!isValid) {
-      return Response.json({ error: "Wrong password" }, { status: 401 });
+      record.attempts += 1;
+      if (record.attempts >= MAX_FAILED_ATTEMPTS) {
+        record.lockUntil = now + LOCKOUT_DURATION;
+      }
+      loginAttempts.set(ip, record);
+
+      if (record.lockUntil > now) {
+        return Response.json(
+          { error: "Too many attempts. Try again in 15 minutes." },
+          { status: 429 }
+        );
+      }
+
+      const remainingAttempts = MAX_FAILED_ATTEMPTS - record.attempts;
+      return Response.json(
+        { error: `Wrong password. ${remainingAttempts} attempt${remainingAttempts > 1 ? "s" : ""} remaining.` },
+        { status: 401 }
+      );
     }
+
+    // On successful login: Reset attempts
+    loginAttempts.delete(ip);
 
     // Create token
     const token = signToken({ role: "admin" });
