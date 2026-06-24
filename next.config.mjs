@@ -15,6 +15,20 @@ const nextConfig = {
     imageSizes: [64, 128, 240, 360, 480],
     // Cache optimised variants for 30 days at the Vercel edge
     minimumCacheTTL: 2592000,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'dl.airtable.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'v5.airtableusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.airtableusercontent.com',
+      },
+    ],
   },
   async headers() {
     const isDev = process.env.NODE_ENV === 'development';

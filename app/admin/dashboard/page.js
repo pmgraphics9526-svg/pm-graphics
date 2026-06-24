@@ -20,8 +20,7 @@ import {
   Phone,
   Edit
 } from "lucide-react";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -279,10 +278,21 @@ export default function AdminDashboard() {
 
     setUploadingImage(true);
     try {
-      const fileExtension = imageFile.name.split(".").pop();
-      const storageRef = ref(storage, `portfolio/${Date.now()}_project.${fileExtension}`);
-      const uploadResult = await uploadBytes(storageRef, imageFile);
-      const imageUrl = await getDownloadURL(uploadResult.ref);
+      const formData = new FormData();
+      formData.append("file", imageFile);
+
+      const uploadRes = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Image upload failed");
+      }
+
+      const uploadData = await uploadRes.json();
+      const imageUrl = uploadData.url;
 
       const res = await fetch("/api/admin/portfolio", {
         method: "POST",
@@ -306,7 +316,7 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error(err);
-      triggerMessage("Error uploading image or saving project details.", "error");
+      triggerMessage(err.message || "Error uploading image or saving project details.", "error");
     } finally {
       setUploadingImage(false);
     }
