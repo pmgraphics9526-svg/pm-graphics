@@ -1,0 +1,426 @@
+const fs = require("fs");
+const path = require("path");
+
+// Helper to load environment variables from .env.local manually
+function loadEnv() {
+  const envPath = path.join(__dirname, "..", ".env.local");
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, "utf-8");
+    content.split("\n").forEach((line) => {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let value = (match[2] || "").trim();
+        // Remove quotes if present
+        if (value.length > 0 && value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') {
+          value = value.substring(1, value.length - 1);
+        }
+        process.env[key] = value;
+      }
+    });
+  }
+}
+
+loadEnv();
+
+const BASE_ID = (process.env.AIRTABLE_BASE_ID || "").trim().replace(/\r/g, "");
+const WRITE_KEY = (process.env.AIRTABLE_WRITE_API_KEY || "").trim().replace(/\r/g, "");
+const TABLE_NAME = "Portfolio";
+
+console.log("BASE_ID length:", BASE_ID ? BASE_ID.length : 0, `[${BASE_ID}]`);
+console.log("WRITE_KEY length:", WRITE_KEY ? WRITE_KEY.length : 0, `[${WRITE_KEY ? WRITE_KEY.substring(0, 10) : ""}...]`);
+
+if (!BASE_ID || !WRITE_KEY) {
+  console.error("❌ Error: AIRTABLE_BASE_ID or AIRTABLE_WRITE_API_KEY is not defined in .env.local.");
+  console.log("Please create a .env.local file in the project root containing:");
+  console.log("AIRTABLE_BASE_ID=your_base_id");
+  console.log("AIRTABLE_WRITE_API_KEY=your_personal_access_token_or_write_key");
+  process.exit(1);
+}
+
+// Statically defined finalized projects from projectsData.js to bypass ESM import issues in Node.js
+const projects = [
+  {
+    id: 1,
+    title: "B&S Dance Company",
+    category: "BRANDING",
+    client: "B&S Dance Company",
+    image: "/projects/BRANDING/B&S 1.png",
+    images: ["/projects/BRANDING/B&S 1.png", "/projects/BRANDING/B&S 2.png"],
+    description: "Bold identity and logotype crafted for a premium dance academy.",
+    year: "2026",
+    scope: ["Logo Design", "Flyers", "Events & Video Editing"],
+    details: "Created the official brand logo, designed promotional event flyers, managed event graphics, and handled video editing for YouTube and short-form Reels."
+  },
+  {
+    id: 2,
+    title: "AAWCA",
+    category: "BRANDING",
+    client: "AAWCA",
+    image: "/projects/BRANDING/aawdca1.png",
+    images: ["/projects/BRANDING/aawdca1.png", "/projects/BRANDING/aawdca2.png"],
+    description: "A polished visual system built for academic authority and professional clarity.",
+    year: "2025",
+    scope: ["Logo", "Flyers", "Event Management"],
+    details: "Designed the academy logo, created promotional marketing flyers, and managed the print and stage graphics for academy events."
+  },
+  {
+    id: 3,
+    title: "BF (Balaji Fabrication )",
+    category: "BRANDING",
+    client: "Balaji Fabrication",
+    image: "/projects/BRANDING/bf 1.png",
+    images: ["/projects/BRANDING/bf 1.png", "/projects/BRANDING/bf2.png"],
+    description: "Industrial branding with a sharp, geometric edge for a fabrication studio.",
+    year: "2025",
+    scope: ["Industrial Logo Design"],
+    details: "Designed a bold, strong, and professional heavy-duty corporate identity and logo system for the fabrication business."
+  },
+  {
+    id: 4,
+    title: "C.K INTERNATIONAL",
+    category: "BRANDING",
+    client: "C.K International",
+    image: "/projects/BRANDING/ck1.png",
+    images: ["/projects/BRANDING/ck1.png"],
+    description: "A luxury refresh for an artisanal product house.",
+    year: "2025",
+    scope: ["Arcadia Atelier"],
+    details: "Updated visual language, packaging, and brand assets for a high-end creative studio."
+  },
+  {
+    id: 5,
+    title: "Ronak & Radhika Wedding Backdrop",
+    category: "BACKDROPS",
+    client: "Ronak & Radhika",
+    image: "/projects/backdrops/backdrop1.jpg",
+    images: ["/projects/backdrops/backdrop1.jpg"],
+    description: "Custom wedding stage backdrop with dark floral theme, gold lettering, and couple's name — designed for a wedding reception.",
+    year: "2026",
+    scope: ["Wedding Stage Backdrop Design"],
+    details: "Designed a large-format wedding stage backdrop for Ronak & Radhika's reception — dark background with gold-toned blooming florals, crystal chandelier overlay, and custom name typography in an elegant circular frame."
+  },
+  {
+    id: 6,
+    title: "B&S Dance Company — Annual Show 2026",
+    category: "BACKDROPS",
+    client: "B&S Dance Company",
+    image: "/projects/backdrops/bihu.jpg",
+    images: [
+      "/projects/backdrops/bihu.jpg",
+      "/projects/backdrops/GALTI SE MISTAKE.png",
+      "/projects/backdrops/ITNISI HASI.jpg",
+      "/projects/backdrops/Jadhu ki jhaapi.png",
+      "/projects/backdrops/Kar gai chull.jpg",
+      "/projects/backdrops/MERE NASEEB MAIN.png",
+      "/projects/backdrops/WITHOUTME.png",
+      "/projects/backdrops/Ye Dil Diwana X jor hole.jpg",
+      "/projects/backdrops/dholida.jpg",
+      "/projects/backdrops/genda phooll.jpg",
+      "/projects/backdrops/kangana.jpg",
+      "/projects/backdrops/mera bala dance.png",
+      "/projects/backdrops/rock the party.jpg",
+      "/projects/backdrops/yeh ishqh.png",
+      "/projects/backdrops/backdrop2.JPG",
+      "/projects/backdrops/backdrop3.JPG",
+      "/projects/backdrops/backdrop4.png",
+      "/projects/backdrops/backdrop5.jpg",
+      "/projects/backdrops/backdrop6.jpg",
+      "/projects/backdrops/backdrop7.JPG",
+      "/projects/backdrops/backdrop8.jpg",
+      "/projects/backdrops/backdrop9.png",
+      "/projects/backdrops/backdrop10.png",
+      "/projects/backdrops/backdrop11.png",
+      "/projects/backdrops/backdrop12.jpg"
+    ],
+    description: "22 individual performance promo graphics for B&S Dance Company's Annual Show 2026 — each featuring the dancers, song, and event details for the May 17 show at LUBC, Jorhat, Assam.",
+    year: "2018",
+    scope: ["Performance Promotional Graphics", "Stage Backdrop Design", "Event Documentation"],
+    details: "Created 22 performer-featured promo graphics for B&S Dance Company's Annual Show (May 17, LUBC Jorhat) — each with photo, song title, venue & date. Also handled live event photography."
+  },
+  {
+    id: 7,
+    title: "Sarita Kundalia Jewellery — New Collection",
+    category: "FLYERS",
+    client: "Sarita Kundalia Jewellery",
+    image: "/projects/FLYERS/Jewelry New Collection/Jewelry New Collection1.png",
+    images: ["/projects/FLYERS/Jewelry New Collection/Jewelry New Collection1.png", "/projects/FLYERS/Jewelry New Collection/Jewelry New Collection2 .png", "/projects/FLYERS/Jewelry New Collection/Jewelry New Collection23.png"],
+    description: "New Collection social media flyers for Sarita Kundalia Jewellery — gold jewellery lifestyle shots with 'Made for the Moments You Shine' messaging and Shop Now CTA.",
+    year: "2026",
+    scope: ["Social Media Flyer Design", "Jewellery Campaign"],
+    details: "Designed a set of social media promotional graphics for Sarita Kundalia Jewellery's new gold jewellery collection launch — featuring real product photography, lifestyle imagery, and branded typography for Instagram promotion."
+  },
+  {
+    id: 8,
+    title: "Marwadi Yuva Manch — Election Campaign 2026",
+    category: "FLYERS",
+    client: "Marwadi Yuva Manch",
+    image: "/projects/FLYERS/campaign/campaign 1.png",
+    images: ["/projects/FLYERS/campaign/campaign 1.png", "/projects/FLYERS/campaign/campaign 2.png", "/projects/FLYERS/campaign/campaign 3.png"],
+    description: "Election campaign flyers for Suraj Sharma's Marwadi Yuva Manch (Jorhat Shakha) presidential candidacy — voting day March 29, 2026, Chamber of Commerce, Jorhat.",
+    year: "2026",
+    scope: ["Political Campaign Flyer Design"],
+    details: "Designed a series of election campaign flyers for the Marwadi Yuva Manch Jorhat Shakha — featuring candidate Suraj Sharma with 'Yuva Shakti, Rasjna Shakti' messaging, voting details, and party branding."
+  },
+  {
+    id: 9,
+    title: "The Shining Sun — Corporate Event Flyers",
+    category: "FLYERS",
+    client: "The Shining Sun",
+    image: "/projects/FLYERS/Corporate/Corporate1.png",
+    images: ["/projects/FLYERS/Corporate/Corporate1.png", "/projects/FLYERS/Corporate/Corporate2.png", "/projects/FLYERS/Corporate/Corporate3.png"],
+    description: "Corporate event flyers for The Shining Sun — Corporate Summit 2026 (Jaipur, June 20) with speaker profiles, and a business webinar flyer for Patel & Co.",
+    year: "2026",
+    scope: ["Corporate Event Flyer Design"],
+    details: "Designed professional event flyers for The Shining Sun's Corporate Summit 2026 in Jaipur — featuring speaker headshots, event highlights, and venue details. Also designed a business webinar flyer for Patel & Co. with speaker spotlight layout."
+  },
+  {
+    id: 10,
+    title: "The Shining Sun — Real Estate Marketing",
+    category: "FLYERS",
+    client: "The Shining Sun",
+    image: "/projects/FLYERS/real state/Real Estate 1.png",
+    images: ["/projects/FLYERS/real state/Real Estate 1.png", "/projects/FLYERS/real state/Real Estate 2.png"],
+    description: "Real estate new listing flyers for The Shining Sun — premium property showcase with pool and interior photography, home features, and Book Now CTA.",
+    year: "2026",
+    scope: ["Real Estate Marketing Flyer"],
+    details: "Designed property listing flyers for The Shining Sun real estate — showcasing premium residential properties with lifestyle photography, feature highlights (bedroom, garden, garage), and direct contact details."
+  },
+  {
+    id: 34,
+    title: "B&S Dance Company — Workshop & Event Promotions",
+    category: "FLYERS",
+    client: "B&S Dance Company",
+    image: "/projects/FLYERS/dance/b&s 1.png",
+    images: ["/projects/FLYERS/dance/b&s 1.png", "/projects/FLYERS/dance/b&s2.png"],
+    description: "Promotional flyers for B&S Dance Company — B-Boy Sam's 2-day breaking training workshop (Apr 6-7, 2026, President Tower, Jorhat) and the Annual Show 2026 launch graphic.",
+    year: "2026",
+    scope: ["Event Promotional Flyer Design", "Workshop Announcements"],
+    details: "Designed a workshop announcement flyer for B-Boy Sam's breaking training sessions at B&S Dance Company, Jorhat — featuring the instructor's photo, batch dates, fees, and contact details. Also designed the Annual Show 2026 launch poster with illustrated dancers."
+  },
+  {
+    id: 35,
+    title: "AAWCA — Dance Camp & Championship Promotions",
+    category: "FLYERS",
+    client: "AAWCA",
+    image: "/projects/FLYERS/dance/dancecamp1.png",
+    images: ["/projects/FLYERS/dance/dancecamp1.png", "/projects/FLYERS/dance/dancecamp2.png"],
+    description: "Event flyers for AAWCA — 3-day Western Dance Masters Training (Jan 27-29, Navarash Kala Kendra) and Star Championship competition (May 31, Jorhat, ₹20K prize money).",
+    year: "2026",
+    scope: ["Dance Event Flyer Design", "Competition Promotion"],
+    details: "Designed two flyers for the All Assam Western Dance Choreographers Association — a master training workshop featuring 6 choreographers, and a dance competition poster with prize breakdown for Junior (3-12 yrs) and Senior (13+ yrs) categories."
+  },
+  {
+    id: 36,
+    title: "B&S Dance Company — Annual Show 2026: Guest Invitations",
+    category: "FLYERS",
+    client: "B&S Dance Company",
+    image: "/projects/FLYERS/invitation flyer/2.png",
+    images: [
+      "/projects/FLYERS/invitation flyer/2.png",
+      "/projects/FLYERS/invitation flyer/3.png",
+      "/projects/FLYERS/invitation flyer/4.png",
+      "/projects/FLYERS/invitation flyer/5.png",
+      "/projects/FLYERS/invitation flyer/7.png",
+      "/projects/FLYERS/invitation flyer/8.png",
+      "/projects/FLYERS/invitation flyer/9.png",
+      "/projects/FLYERS/invitation flyer/10.png",
+      "/projects/FLYERS/invitation flyer/19.png",
+      "/projects/FLYERS/invitation flyer/20.png"
+    ],
+    description: "10 individual Guest of Honour invitation graphics for B&S Dance Company's Annual Show 2026 — each card features a different guest (Ashwan Singh, Santomoni Sharma, Vivek Roy, Sunil Rai, Anuraag Agni, and others), May 17, LUBC Jorhat.",
+    year: "2026",
+    scope: ["Event Invitation Design", "Guest Feature Graphics"],
+    details: "Designed 10 personalized Guest of Honour invitation flyers for B&S Dance Company's Annual Show 2026 — each featuring the guest's photo, name, designation, event date and venue. Guests included dancers, choreographers, and an Assamese rap artist."
+  },
+  {
+    id: 37,
+    title: "Payal & Sahil — Wedding Stationery",
+    category: "FLYERS",
+    client: "Payal & Sahil",
+    image: "/projects/FLYERS/Red and Gold Traditional Wedding Photo Collage_20260610_201033_0000.png",
+    images: ["/projects/FLYERS/Red and Gold Traditional Wedding Photo Collage_20260610_201033_0000.png", "/projects/FLYERS/White Modern Happy Wedding Photo Collage_20260610_201700_0000.png"],
+    description: "Save the Date and wedding day photo collage graphics for Payal & Sahil's wedding on Oct 5, 2025 — two style variants: traditional red-gold and modern white.",
+    year: "2025",
+    scope: ["Wedding Graphic Design", "Photo Collage"],
+    details: "Designed two wedding graphics for Payal & Sahil — a traditional red and gold Save the Date collage with ceremony photos and floral accents, and a clean modern white Happy Wedding collage with Polaroid-style photo frames."
+  },
+  {
+    id: 38,
+    title: "Swaad Restaurant — Promotional Flyer",
+    category: "FLYERS",
+    client: "Swaad Restaurant",
+    image: "/projects/FLYERS/file_000000000954720884c0cdd058346c47.png",
+    images: ["/projects/FLYERS/file_000000000954720884c0cdd058346c47.png"],
+    description: "Restaurant promo flyer for Swaad Restaurant — food spread photography with biryani, burger, and pizza, 'Good Food. Good Mood.' tagline, and Visit Us Today CTA.",
+    year: "2026",
+    scope: ["Restaurant Marketing Flyer", "Social Media Ad"],
+    details: "Designed a promotional marketing flyer for Swaad Restaurant — dark moody food photography layout featuring the restaurant's signature dishes, brand tagline, and key USPs (hygienic kitchen, family friendly, great ambience)."
+  },
+  {
+    id: 39,
+    title: "Dergaon Kamal Dowerah College — Freshers Night 2026",
+    category: "FLYERS",
+    client: "DKD College",
+    image: "/projects/FLYERS/file_00000000b548720bb95c246db9d32ce2.png",
+    images: ["/projects/FLYERS/file_00000000b548720bb95c246db9d32ce2.png"],
+    description: "Event promotional flyer for Freshers Night 2026 at Dergaon Kamal Dowerah College — Jan 24, 2026, featuring DJ night, live performances, games, and exciting prizes.",
+    year: "2026",
+    scope: ["College Event Flyer Design"],
+    details: "Designed a Freshers Night event poster for Dergaon Kamal Dowerah College, Assam — vibrant neon concert-crowd background with event highlights (DJ night, live performances, games, prizes) and college branding."
+  },
+  {
+    id: 40,
+    title: "Raju Optical — Product Advertisement",
+    category: "FLYERS",
+    client: "Raju Optical",
+    image: "/projects/FLYERS/file_00000000fcc072089ae215a123d266ef.png",
+    images: ["/projects/FLYERS/file_00000000fcc072089ae215a123d266ef.png"],
+    description: "Product ad flyer for Raju Optical's Diamond Rimless UV400 sunglasses at ₹399 — features spec highlights, photoshoot-style imagery, and limited-time offer pricing.",
+    year: "",
+    hideDetails: true,
+    scope: ["Product Advertisement Flyer", "Social Media Ad"],
+    details: ""
+  },
+  {
+    id: 41,
+    title: "Hassi Ki Raat — Stand-up Comedy Event",
+    category: "FLYERS",
+    client: "Hassi-Ha Entertainment",
+    image: "/projects/FLYERS/IMG_20260620_154237.png",
+    images: ["/projects/FLYERS/IMG_20260620_154237.png"],
+    description: "Event poster for 'Hassi Ki Raat' stand-up comedy night featuring Rohan Kamra & Friends — Dec 20, Canvas Laugh Club, Mumbai. Tickets from ₹799.",
+    year: "2025",
+    scope: ["Event Poster Design"],
+    details: "Designed an event promotional poster for Hassi Ki Raat comedy night — dark brick-wall stage aesthetic with neon mic graphic, comedian names, venue details, and ticket pricing for Canvas Laugh Club, Mumbai."
+  },
+  {
+    id: 16,
+    title: "Royal Feast Restaurant",
+    category: "BRANDING",
+    client: "Royal Feast Restaurant",
+    image: "/projects/BRANDING/Royal1.jpg",
+    images: ["/projects/BRANDING/Royal1.jpg", "/projects/BRANDING/Royal feast 02.png"],
+    description: "Premium restaurant branding with rich typography and menu design.",
+    year: "2025",
+    scope: ["Restaurant Branding", "Typography", "Menu"],
+    details: "Premium dining corporate assets, signage, logotype, and menu layouts designed for fine dining."
+  },
+  {
+    id: 17,
+    title: "FitZone Gym",
+    category: "BRANDING",
+    client: "FitZone Gym",
+    image: "/projects/BRANDING/fitzone1.png",
+    images: ["/projects/BRANDING/fitzone1.png", "/projects/BRANDING/fitzone2.png"],
+    description: "Bold and energetic fitness brand identity with dynamic logo system.",
+    year: "2026",
+    scope: ["Fitness Logo", "Brand Assets"],
+    details: "Created high energy fitness visuals, logo guidelines, and marketing templates for a fitness brand."
+  },
+  {
+    id: 18,
+    title: "GreenLeaf Organics",
+    category: "BRANDING",
+    client: "GreenLeaf Organics",
+    image: "/projects/BRANDING/Greenleaf 01.png",
+    images: ["/projects/BRANDING/Greenleaf 01.png", "/projects/BRANDING/Greenleaf 02.png"],
+    description: "Natural and earthy brand identity for an organic products company.",
+    year: "2025",
+    scope: ["Organic Branding", "Eco Identity"],
+    details: "Designed sustainable packaging designs, earthy color schemes, and natural logo design systems."
+  },
+  {
+    id: 33,
+    title: "Dark Bean",
+    category: "BRANDING",
+    client: "Dark Bean Cafe",
+    image: "/projects/BRANDING/dark bean1.png",
+    images: ["/projects/BRANDING/dark bean1.png", "/projects/BRANDING/dark bean2.png"],
+    description: "Bold and moody café brand identity with premium dark aesthetic.",
+    year: "2026",
+    scope: ["Logo Design", "Brand Identity", "Café Branding"],
+    details: "Crafted a rich, dark-toned brand identity for a premium café including logo, typography, and visual assets."
+  }
+];
+
+async function migrate() {
+  console.log(`🚀 Starting migration of ${projects.length} projects to Airtable Table: "${TABLE_NAME}"...`);
+
+  // We batch requests because Airtable allows up to 10 records per request
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < projects.length; i += BATCH_SIZE) {
+    const batch = projects.slice(i, i + BATCH_SIZE);
+    
+    const records = batch.map((p) => {
+      // Map to fields matching our schema
+      const yearNum = p.year ? parseInt(p.year, 10) : null;
+      const fields = {
+        Id: Number(p.id),
+        Title: p.title || "",
+        Category: p.category || "",
+        Client: p.client || "",
+        Description: p.description || "",
+        Scope: (p.scope || []).join(", "),
+        Details: p.details || "",
+        HideDetails: !!p.hideDetails,
+        VideoUrl: p.videoUrl || "",
+        ImagePathList: (p.images || []).join(", ") // Local fallback path list
+      };
+      // Only include Year if it's a valid number (Airtable Year field is type Number)
+      if (yearNum && !isNaN(yearNum)) {
+        fields.Year = yearNum;
+      }
+      return { fields };
+    });
+
+    const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_NAME)}`;
+    console.log("Request URL:", url);
+    console.log("Authorization Header:", `Bearer ${WRITE_KEY}`);
+    
+    let attempts = 0;
+    const maxAttempts = 6;
+    let success = false;
+    
+    while (attempts < maxAttempts && !success) {
+      attempts++;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${WRITE_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ records })
+        });
+
+        if (response.ok) {
+          console.log(`✅ Uploaded batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} records) successfully.`);
+          success = true;
+        } else {
+          const errorText = await response.text();
+          console.warn(`⚠️ Attempt ${attempts} failed for batch ${Math.floor(i / BATCH_SIZE) + 1}:`, errorText);
+          if (attempts < maxAttempts) {
+            console.log("Waiting 4 seconds before retrying (handling propagation delay)...");
+            await new Promise(resolve => setTimeout(resolve, 4000));
+          } else {
+            console.error(`❌ Batch ${Math.floor(i / BATCH_SIZE) + 1} failed permanently after ${maxAttempts} attempts.`);
+            process.exit(1);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Connection error during batch ${Math.floor(i / BATCH_SIZE) + 1} (Attempt ${attempts}):`, error);
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 4000));
+        } else {
+          process.exit(1);
+        }
+      }
+    }
+  }
+
+  console.log("🎉 Migration finished successfully!");
+  console.log("💡 Note: Image files are stored as local paths in 'ImagePathList'. You can manually drag & drop high-res image files to the 'Images' attachment field in Airtable.");
+}
+
+migrate();
