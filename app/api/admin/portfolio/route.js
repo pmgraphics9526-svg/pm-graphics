@@ -57,6 +57,7 @@ export async function GET(request) {
 
       return {
         id: rec.id, // Return Airtable record ID for deletion and edit keys
+        numericId: f.Id ? Number(f.Id) : 0,
         title: f.Title || "",
         category: f.Category || "BRANDING",
         imageUrl: images[0] || "",
@@ -69,8 +70,15 @@ export async function GET(request) {
       };
     });
 
-    // Sort by creation time descending (newest first)
-    mappedProjects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Sort by numeric ID descending (newest first), falling back to creation time descending
+    mappedProjects.sort((a, b) => {
+      const aId = a.numericId || 0;
+      const bId = b.numericId || 0;
+      if (aId !== bId) {
+        return bId - aId;
+      }
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
     return Response.json(mappedProjects);
   } catch (err) {
@@ -206,6 +214,71 @@ export async function DELETE(request) {
     return Response.json({ success: true });
   } catch (err) {
     console.error("DELETE Admin Portfolio Error:", err);
+    return Response.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const user = isAuthenticated(request);
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const baseId = process.env.AIRTABLE_BASE_ID;
+    const writeKey = process.env.AIRTABLE_WRITE_API_KEY;
+    const tableName = "Portfolio";
+
+    if (!baseId || !writeKey) {
+      return Response.json({ error: "Airtable write credentials are missing" }, { status: 500 });
+    }
+
+    const body = await request.json();
+    const { id, title, category, imageUrl, description, client, year, scope, details } = body;
+
+    if (!id || !title || !category) {
+      return Response.json({ error: "ID, Title, and Category are required" }, { status: 400 });
+    }
+
+    const scopeStr = Array.isArray(scope) ? scope.join(", ") : scope || "";
+
+    const fields = {
+      Title: title,
+      Category: category,
+      Description: description || "",
+      Client: client || title,
+      Year: Number(year) || new Date().getFullYear(),
+      Scope: scopeStr,
+      Details: details || "",
+    };
+
+    if (imageUrl) {
+      fields.ImagePathList = imageUrl;
+      fields.Images = [
+        {
+          url: imageUrl
+        }
+      ];
+    }
+
+    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${id}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${writeKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Airtable PATCH portfolio error:", errText);
+      return Response.json({ error: "Failed to update project in Airtable" }, { status: 502 });
+    }
+
+    return Response.json({ success: true });
+  } catch (err) {
+    console.error("PUT Admin Portfolio Error:", err);
     return Response.json({ error: "Server error" }, { status: 500 });
   }
 }

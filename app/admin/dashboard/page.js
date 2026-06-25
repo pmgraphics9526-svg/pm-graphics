@@ -20,7 +20,24 @@ import {
   Phone,
   Edit
 } from "lucide-react";
+const cleanPrice = (priceStr) => {
+  if (!priceStr) return "";
+  if (priceStr.length <= 15) return priceStr;
 
+  const match = priceStr.match(/[₹$]\s*[0-9,]+/);
+  if (match) return match[0];
+
+  const numberMatch = priceStr.match(/[0-9,]+/);
+  if (numberMatch) return "₹" + numberMatch[0];
+
+  if (/custom/i.test(priceStr)) return "Custom";
+  return "Custom";
+};
+
+const extractDescription = (priceStr, defaultDesc) => {
+  if (!priceStr || priceStr.length <= 15) return defaultDesc;
+  return priceStr;
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -52,9 +69,17 @@ export default function AdminDashboard() {
   // Portfolio state
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
+  const [isEditingProject, setIsEditingProject] = useState(false);
   const [newProject, setNewProject] = useState({
+    id: "",
     title: "",
     category: "BRANDING",
+    imageUrl: "",
+    client: "",
+    description: "",
+    year: "",
+    scope: "",
+    details: ""
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageFile, setImageFile] = useState(null);
@@ -265,52 +290,114 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleOpenAddProject = () => {
+    setNewProject({
+      id: "",
+      title: "",
+      category: "BRANDING",
+      imageUrl: "",
+      client: "",
+      description: "",
+      year: "",
+      scope: "",
+      details: ""
+    });
+    setImageFile(null);
+    setImagePreview(null);
+    setIsEditingProject(false);
+    setShowUploadModal(true);
+  };
+
+  const handleOpenEditProject = (project) => {
+    setNewProject({
+      id: project.id,
+      title: project.title,
+      category: project.category,
+      imageUrl: project.imageUrl || "",
+      client: project.client || "",
+      description: project.description || "",
+      year: project.year || "",
+      scope: Array.isArray(project.scope) ? project.scope.join(", ") : project.scope || "",
+      details: project.details || ""
+    });
+    setImageFile(null);
+    setImagePreview(project.imageUrl || null);
+    setIsEditingProject(true);
+    setShowUploadModal(true);
+  };
+
   const handleAddProject = async (e) => {
     e.preventDefault();
     if (!newProject.title.trim()) {
       triggerMessage("Project title is required", "error");
       return;
     }
-    if (!imageFile) {
+    if (!imageFile && !isEditingProject) {
       triggerMessage("Please select an image file to upload", "error");
       return;
     }
 
     setUploadingImage(true);
     try {
-      const formData = new FormData();
-      formData.append("file", imageFile);
+      let imageUrl = newProject.imageUrl || "";
 
-      const uploadRes = await fetch("/api/admin/upload", {
-        method: "POST",
-        body: formData,
-      });
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("file", imageFile);
 
-      if (!uploadRes.ok) {
-        const errData = await uploadRes.json().catch(() => ({}));
-        throw new Error(errData.error || "Image upload failed");
+        const uploadRes = await fetch("/api/admin/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Image upload failed");
+        }
+
+        const uploadData = await uploadRes.json();
+        imageUrl = uploadData.url;
       }
 
-      const uploadData = await uploadRes.json();
-      const imageUrl = uploadData.url;
+      const method = isEditingProject ? "PUT" : "POST";
+      const payload = {
+        title: newProject.title,
+        category: newProject.category,
+        imageUrl: imageUrl,
+        client: newProject.client || "",
+        description: newProject.description || "",
+        year: newProject.year || "",
+        scope: newProject.scope || "",
+        details: newProject.details || ""
+      };
+      if (isEditingProject) {
+        payload.id = newProject.id;
+      }
 
       const res = await fetch("/api/admin/portfolio", {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newProject.title,
-          category: newProject.category,
-          imageUrl: imageUrl,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        triggerMessage("New project added to portfolio successfully!");
-        setNewProject({ title: "", category: "BRANDING" });
+        triggerMessage(isEditingProject ? "Project updated successfully!" : "New project added to portfolio successfully!");
+        setNewProject({
+          id: "",
+          title: "",
+          category: "BRANDING",
+          imageUrl: "",
+          client: "",
+          description: "",
+          year: "",
+          scope: "",
+          details: ""
+        });
         setImageFile(null);
         setImagePreview(null);
         fetchProjects();
         setShowUploadModal(false);
+        setIsEditingProject(false);
       } else {
         triggerMessage("Failed to save project metadata.", "error");
       }
@@ -606,13 +693,17 @@ export default function AdminDashboard() {
                   {packagesList.map((pkg) => (
                     <div key={pkg.id} className="glass-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%" }}>
                       <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                          <h4 style={{ fontSize: "16px", fontWeight: "700", color: "#ffffff", margin: 0 }}>{pkg.name}</h4>
-                          <span style={{ fontSize: "18px", fontWeight: "800", color: "#FF6B00" }}>{pkg.price}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+                          <h4 style={{ fontSize: "18px", fontWeight: "700", color: "#FF6B00", margin: 0, fontFamily: "var(--font-space-grotesk), sans-serif", textTransform: "uppercase" }}>
+                            {pkg.name}
+                          </h4>
+                          <div style={{ fontSize: "24px", fontWeight: "800", color: "#ffffff", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
+                            {cleanPrice(pkg.price)}
+                          </div>
+                          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)", margin: 0, lineHeight: "1.6", fontFamily: "var(--font-inter), sans-serif" }}>
+                            {extractDescription(pkg.price, pkg.description)}
+                          </p>
                         </div>
-                        <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.55)", margin: "0 0 16px 0", lineHeight: "1.5" }}>
-                          {pkg.description || "No description provided."}
-                        </p>
                         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: "12px", marginBottom: "16px" }}>
                           <span style={{ fontSize: "10px", fontWeight: "700", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>
                             Features ({pkg.features?.split("\n").filter(Boolean).length || 0})
@@ -817,7 +908,7 @@ export default function AdminDashboard() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: "700", color: "rgba(255,255,255,0.9)", margin: 0, textTransform: "uppercase" }}>Creative Designs</h3>
                 <button
-                  onClick={() => setShowUploadModal(true)}
+                  onClick={handleOpenAddProject}
                   style={{
                     backgroundColor: "#FF6B00",
                     color: "#ffffff",
@@ -887,24 +978,44 @@ export default function AdminDashboard() {
                         <h4 style={{ fontSize: "13.5px", fontWeight: "700", color: "#ffffff", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                           {project.title}
                         </h4>
-                        <button
-                          onClick={() => handleDeleteProject(project.id)}
-                          style={{
-                            border: "none",
-                            background: "rgba(239, 68, 68, 0.05)",
-                            color: "#ef4444",
-                            cursor: "pointer",
-                            padding: "8px",
-                            borderRadius: "8px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            transition: "all 0.2s"
-                          }}
-                          onMouseEnter={(e)=>e.currentTarget.style.backgroundColor="rgba(239,68,68,0.12)"}
-                          onMouseLeave={(e)=>e.currentTarget.style.backgroundColor="rgba(239,68,68,0.05)"}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <button
+                            onClick={() => handleOpenEditProject(project)}
+                            style={{
+                              border: "none",
+                              background: "rgba(255, 255, 255, 0.05)",
+                              color: "rgba(255, 255, 255, 0.7)",
+                              cursor: "pointer",
+                              padding: "8px",
+                              borderRadius: "8px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e)=> { e.currentTarget.style.backgroundColor="rgba(255, 107, 0, 0.1)"; e.currentTarget.style.color="#FF6B00"; }}
+                            onMouseLeave={(e)=> { e.currentTarget.style.backgroundColor="rgba(255, 255, 255, 0.05)"; e.currentTarget.style.color="rgba(255, 255, 255, 0.7)"; }}
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProject(project.id)}
+                            style={{
+                              border: "none",
+                              background: "rgba(239, 68, 68, 0.05)",
+                              color: "#ef4444",
+                              cursor: "pointer",
+                              padding: "8px",
+                              borderRadius: "8px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e)=>e.currentTarget.style.backgroundColor="rgba(239,68,68,0.12)"}
+                            onMouseLeave={(e)=>e.currentTarget.style.backgroundColor="rgba(239,68,68,0.05)"}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -922,6 +1033,7 @@ export default function AdminDashboard() {
                   backgroundColor: "rgba(0,0,0,0.85)",
                   backdropFilter: "blur(6px)",
                   display: "flex",
+                  justifyType: "center",
                   justifyContent: "center",
                   alignItems: "center",
                   zIndex: 1000
@@ -932,11 +1044,13 @@ export default function AdminDashboard() {
                     borderRadius: "16px",
                     padding: "28px",
                     width: "90%",
-                    maxWidth: "460px",
+                    maxWidth: "520px",
+                    maxHeight: "90vh",
+                    overflowY: "auto",
                     boxShadow: "0 20px 40px rgba(0,0,0,0.7)"
                   }}>
                     <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#FF6B00", textTransform: "uppercase", margin: "0 0 16px 0", fontFamily: "var(--font-space-grotesk), sans-serif" }}>
-                      Upload Portfolio Project
+                      {isEditingProject ? "Edit Portfolio Project" : "Upload Portfolio Project"}
                     </h3>
                     
                     <form onSubmit={handleAddProject} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -977,8 +1091,71 @@ export default function AdminDashboard() {
                         </select>
                       </div>
 
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Client (Optional)</label>
+                          <input 
+                            type="text" 
+                            value={newProject.client}
+                            onChange={(e)=>setNewProject({...newProject, client: e.target.value})}
+                            className="input-field" 
+                            style={{ fontSize: "13px", padding: "10px 14px", borderRadius: "8px", height: "44px", backgroundColor: "#0a0a0a", border: "1px solid #2a2a2a", color: "#ffffff" }}
+                            placeholder="e.g. Acme Corp"
+                          />
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Year (Optional)</label>
+                          <input 
+                            type="text" 
+                            value={newProject.year}
+                            onChange={(e)=>setNewProject({...newProject, year: e.target.value})}
+                            className="input-field" 
+                            style={{ fontSize: "13px", padding: "10px 14px", borderRadius: "8px", height: "44px", backgroundColor: "#0a0a0a", border: "1px solid #2a2a2a", color: "#ffffff" }}
+                            placeholder="e.g. 2026"
+                          />
+                        </div>
+                      </div>
+
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Project Image File</label>
+                        <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Short Description (Optional)</label>
+                        <input 
+                          type="text" 
+                          value={newProject.description}
+                          onChange={(e)=>setNewProject({...newProject, description: e.target.value})}
+                          className="input-field" 
+                          style={{ fontSize: "13px", padding: "10px 14px", borderRadius: "8px", height: "44px", backgroundColor: "#0a0a0a", border: "1px solid #2a2a2a", color: "#ffffff" }}
+                          placeholder="Brief project summary"
+                        />
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Scope / Tags (Optional)</label>
+                        <input 
+                          type="text" 
+                          value={newProject.scope}
+                          onChange={(e)=>setNewProject({...newProject, scope: e.target.value})}
+                          className="input-field" 
+                          style={{ fontSize: "13px", padding: "10px 14px", borderRadius: "8px", height: "44px", backgroundColor: "#0a0a0a", border: "1px solid #2a2a2a", color: "#ffffff" }}
+                          placeholder="e.g. Logo Design, Event Flyer (comma separated)"
+                        />
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Project Details / Description (Optional)</label>
+                        <textarea 
+                          rows={3}
+                          value={newProject.details}
+                          onChange={(e)=>setNewProject({...newProject, details: e.target.value})}
+                          className="input-field" 
+                          style={{ resize: "none", borderRadius: "8px", fontSize: "13px", padding: "10px 14px", height: "80px", backgroundColor: "#0a0a0a", border: "1px solid #2a2a2a", color: "#ffffff" }}
+                          placeholder="Detailed overview of the project work..."
+                        />
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>
+                          Project Image File {isEditingProject && "(Optional)"}
+                        </label>
                         <div style={{
                           border: "1px dashed rgba(255, 107, 0, 0.3)",
                           borderRadius: "8px",
@@ -1006,7 +1183,7 @@ export default function AdminDashboard() {
                                 alt="Preview" 
                                 style={{ maxWidth: "100%", maxHeight: "70px", objectFit: "contain", borderRadius: "4px", border: "1px solid #FF6B00" }} 
                               />
-                              <span style={{ fontSize: "11px", color: "#ffffff", fontWeight: "600" }}>{imageFile?.name}</span>
+                              <span style={{ fontSize: "11px", color: "#ffffff", fontWeight: "600" }}>{imageFile?.name || "Current Image"}</span>
                             </div>
                           ) : (
                             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", color: "rgba(255,255,255,0.4)" }}>
@@ -1039,12 +1216,12 @@ export default function AdminDashboard() {
                             cursor: "pointer"
                           }}
                         >
-                          {uploadingImage ? <Loader2 size={14} className="spinner" /> : <Plus size={14} />}
-                          {uploadingImage ? "Uploading..." : "Add Project"}
+                          {uploadingImage ? <Loader2 size={14} className="spinner" /> : isEditingProject ? <Check size={14} /> : <Plus size={14} />}
+                          {uploadingImage ? "Uploading..." : isEditingProject ? "Save Changes" : "Add Project"}
                         </button>
                         <button 
                           type="button" 
-                          onClick={() => { setShowUploadModal(false); setImageFile(null); setImagePreview(null); }}
+                          onClick={() => { setShowUploadModal(false); setImageFile(null); setImagePreview(null); setIsEditingProject(false); }}
                           style={{
                             flex: 1,
                             borderRadius: "8px",

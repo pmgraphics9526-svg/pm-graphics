@@ -97,8 +97,8 @@ export async function GET() {
       };
     });
 
-    // Sort projects by ID so they appear in a consistent order
-    mappedProjects.sort((a, b) => a.id - b.id);
+    // Sort projects by ID descending (newest first)
+    mappedProjects.sort((a, b) => b.id - a.id);
 
     return Response.json(mappedProjects);
   } catch (err) {
