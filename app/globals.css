@@ -192,7 +192,7 @@ body {
 }
 
 @media (max-width: 768px) {
-  .capabilities-heading { white-space: normal; font-size: clamp(1.4rem, 5vw, 2rem); }
+  .capabilities-heading { white-space: normal; font-size: clamp(1.2rem, 5vw, 2rem); }
 }
 
 /* Capabilities Grid */
@@ -203,7 +203,7 @@ body {
 }
 
 @media (max-width: 1024px) { .capabilities-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px)  { .capabilities-grid { grid-template-columns: 1fr; gap: var(--stack-md); } }
+@media (max-width: 768px)  { .capabilities-grid { grid-template-columns: repeat(2, 1fr); gap: var(--stack-md); } }
 
 /* Glassmorphism Cards — white frosted on light bg */
 .glass-card {

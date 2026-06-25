@@ -43,7 +43,7 @@ export default function ProcessSection() {
             textTransform: "uppercase",
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
-            fontSize: "clamp(1.8rem, 3.5vw, 44px)",
+            fontSize: "clamp(1.4rem, 3.5vw, 44px)",
             color: "var(--text-primary)",
           }}
         >

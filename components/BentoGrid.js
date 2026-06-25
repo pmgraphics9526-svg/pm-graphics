@@ -169,7 +169,7 @@ export default function BentoGrid({ onSelectProject }) {
         }}
       >
         <div className="font-label-caps" style={{ color: "var(--accent)" }}>SELECTED WORK</div>
-        <h2 style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: "1.2" }}>
+        <h2 style={{ fontSize: "clamp(1.1rem, 4vw, 3.5rem)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: "1.2" }}>
           CRAFTING HIGH-IMPACT BRAND IDENTITIES & DIGITAL CONTENT
         </h2>
       </div>
