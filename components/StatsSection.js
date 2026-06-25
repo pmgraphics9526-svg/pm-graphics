@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 const STATS = [
   { value: 50, suffix: "+", label: "Projects Delivered" },
-  { value: 35, suffix: "+", label: "Happy Clients" },
-  { value: 3,  suffix: "+", label: "Years Experience" },
-  { value: 98, suffix: "%", label: "Satisfaction Rate" },
+  { value: 2,  suffix: "+", label: "Years Experience" },
+  { value: 100, suffix: "%", label: "Client Satisfaction" },
 ];
 
 function useCountUp(target, duration = 1800, active = false) {
@@ -106,7 +105,7 @@ export default function StatsSection() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(3, 1fr)",
           gap: "var(--stack-lg)",
         }}
         className="stats-grid"
@@ -118,10 +117,10 @@ export default function StatsSection() {
 
       <style jsx global>{`
         @media (max-width: 1024px) {
-          .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .stats-grid { grid-template-columns: repeat(3, 1fr) !important; }
         }
-        @media (max-width: 480px) {
-          .stats-grid { grid-template-columns: 1fr 1fr !important; }
+        @media (max-width: 768px) {
+          .stats-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </section>

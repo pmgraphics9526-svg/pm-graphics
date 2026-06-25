@@ -55,14 +55,9 @@ export default function Hero() {
     }
   };
 
-  // Calculate dynamic stats from actual project data
-  const totalProjects = projects.length;
-  const uniqueClientsList = Array.from(new Set(projects.map((p) => p.client).filter(Boolean)));
-  const uniqueClientsCount = uniqueClientsList.length;
-
-  const countProjects = useCountUp(totalProjects, 1500, true);
-  const countClients = useCountUp(uniqueClientsCount, 1500, true);
-  const countExperience = useCountUp(3, 1000, true);
+  const countProjects = useCountUp(50, 1500, true);
+  const countExperience = useCountUp(2, 1000, true);
+  const countSatisfaction = useCountUp(100, 1500, true);
 
 
 
@@ -178,18 +173,18 @@ export default function Hero() {
 
             <div className="hero-stat-item">
               <div className="hero-stat-val">
-                <Users size={20} />
-                <span>{countClients}+</span>
-              </div>
-              <div className="hero-stat-label">Happy Clients</div>
-            </div>
-
-            <div className="hero-stat-item">
-              <div className="hero-stat-val">
                 <Award size={20} />
                 <span>{countExperience}+</span>
               </div>
               <div className="hero-stat-label">Years Experience</div>
+            </div>
+
+            <div className="hero-stat-item">
+              <div className="hero-stat-val">
+                <Users size={20} />
+                <span>{countSatisfaction}%</span>
+              </div>
+              <div className="hero-stat-label">Client Satisfaction</div>
             </div>
           </div>
         </div>
