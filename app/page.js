@@ -355,7 +355,7 @@ export default function Home() {
                 </div>
 
                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <h3 className="font-headline-md" style={{ color: "var(--text-primary)", textTransform: "uppercase", fontSize: "13px", whiteSpace: "nowrap" }}>{item.title}</h3>
+                  <h3 className="font-headline-md" style={{ color: "var(--text-primary)", textTransform: "uppercase", fontSize: "13px", lineHeight: "1.3" }}>{item.title}</h3>
                   <p className="font-body-md" style={{ color: "var(--text-secondary)", fontSize: "13.5px", lineHeight: "1.5" }}>
                     {item.description}
                   </p>
