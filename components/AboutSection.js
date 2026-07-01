@@ -17,7 +17,7 @@ export default function AboutSection() {
           display: "grid",
           gridTemplateColumns: "1fr 1.2fr",
           gap: "48px",
-          alignItems: "start"
+          alignItems: "center"
         }}
         className="about-grid"
       >

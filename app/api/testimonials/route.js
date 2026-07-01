@@ -1,3 +1,5 @@
+export const revalidate = 300;
+
 const preWrittenReviews = [
   {
     id: "pre-1",
@@ -66,7 +68,6 @@ export async function GET() {
       headers: {
         Authorization: `Bearer ${readKey}`,
       },
-      next: { revalidate: 10 }, // Cache on server for 10 seconds
     });
 
     if (!res.ok) {

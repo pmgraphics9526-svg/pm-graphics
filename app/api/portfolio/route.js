@@ -1,3 +1,5 @@
+export const revalidate = 300;
+
 import { projects as fallbackProjects } from "@/components/projectsData";
 
 export async function GET() {
@@ -27,7 +29,6 @@ export async function GET() {
         headers: {
           Authorization: `Bearer ${readKey}`,
         },
-        next: { revalidate: 10 }, // Cache response on server for 10 seconds
       });
 
       if (!res.ok) {
@@ -68,6 +69,36 @@ export async function GET() {
           .map((img) => img.trim())
           .filter(Boolean);
       }
+
+      const normalizeImagePath = (originalPath) => {
+        if (!originalPath || typeof originalPath !== 'string') return originalPath;
+        if (!originalPath.startsWith('/projects/')) return originalPath;
+        
+        const parts = originalPath.split('/');
+        const normalizedParts = parts.map((part, index) => {
+          if (index === 0) return part;
+          if (index === 1 && part.toLowerCase() === 'projects') return 'projects';
+          
+          if (part.toUpperCase() === 'BRANDING') return 'BRANDING';
+          if (part.toUpperCase() === 'FLYERS') return 'FLYERS';
+          if (part.toLowerCase() === 'corporate') return 'Corporate';
+          
+          if (index === parts.length - 1) {
+            const lastDot = part.lastIndexOf('.');
+            if (lastDot !== -1) {
+              const name = part.substring(0, lastDot).trim();
+              const ext = part.substring(lastDot);
+              return name.toLowerCase().replace(/ /g, '-') + ext;
+            }
+          }
+          
+          return part.trim().toLowerCase().replace(/ /g, '-');
+        });
+        
+        return normalizedParts.join('/');
+      };
+
+      images = images.map(normalizeImagePath);
 
       // Map scope: split comma-separated text into array
       const scope = f.Scope

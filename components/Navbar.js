@@ -97,30 +97,24 @@ export default function Navbar() {
         top: 0,
         left: 0,
         width: "100%",
-        zIndex: 100,
+        zIndex: 999,
         padding: scrolled ? "16px 0" : "24px 0",
+        backgroundColor: scrolled ? "rgba(11,11,11,0.95)" : "transparent",
+        backdropFilter: scrolled ? "blur(32px)" : "none",
+        WebkitBackdropFilter: scrolled ? "blur(32px)" : "none",
+        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.05)" : "1px solid transparent",
         transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
         display: "flex",
         justifyContent: "center",
       }}
     >
-      {/* Floating Island Container */}
       <nav
         style={{
-          width: scrolled ? "fit-content" : "92%",
+          width: "92%",
           maxWidth: "1280px",
           display: "flex",
           alignItems: "center",
-          justifyContent: scrolled ? "center" : "space-between",
-          gap: scrolled ? "32px" : "0px",
-          padding: scrolled ? "10px 24px" : "14px 32px",
-          backgroundColor: scrolled ? "rgba(19,19,19,0.75)" : "transparent",
-          backdropFilter: scrolled ? "blur(28px)" : "none",
-          WebkitBackdropFilter: scrolled ? "blur(28px)" : "none",
-          border: scrolled ? "1px solid rgba(255,106,0,0.18)" : "1px solid transparent",
-          borderRadius: scrolled ? "9999px" : "0px",
-          boxShadow: scrolled ? "0 8px 32px rgba(255,106,0,0.15)" : "none",
-          transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+          justifyContent: "space-between",
         }}
       >
         {/* Brand Logo */}

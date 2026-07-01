@@ -111,12 +111,12 @@ export default function PricingSection({ settings }) {
         <div className="font-label-caps" style={{ color: "var(--accent)" }}>PACKAGES</div>
         <h2
           style={{
-            fontFamily: "var(--font-display), sans-serif",
-            fontWeight: "800",
+            fontFamily: "var(--font-inter), sans-serif",
+            fontWeight: "700",
             textTransform: "uppercase",
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
-            fontSize: "clamp(1.8rem, 3.5vw, 44px)",
+            fontSize: "clamp(1.6rem, 2.8vw, 36px)",
             color: "var(--text-primary)",
           }}
         >

@@ -38,8 +38,8 @@ export default function ProcessSection() {
         <div className="font-label-caps" style={{ color: "var(--accent)" }}>OUR PROCESS</div>
         <h2
           style={{
-            fontFamily: "var(--font-display), sans-serif",
-            fontWeight: "800",
+            fontFamily: "var(--font-inter), sans-serif",
+            fontWeight: "700",
             textTransform: "uppercase",
             letterSpacing: "-0.02em",
             lineHeight: 1.1,

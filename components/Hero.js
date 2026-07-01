@@ -86,10 +86,11 @@ export default function Hero() {
         width: "100%",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         alignItems: "center",
         overflow: "hidden",
         backgroundColor: "transparent",
+        paddingTop: "80px",
         paddingBottom: "8px",
       }}
     >
@@ -106,7 +107,6 @@ export default function Hero() {
           gridTemplateColumns: "var(--hero-grid-cols, 1.1fr 1fr)",
           alignItems: "center",
           gap: "48px",
-          paddingTop: "130px",
           width: "100%",
         }}
       >
@@ -124,11 +124,11 @@ export default function Hero() {
               style={{
                 fontFamily: "var(--font-space-grotesk), var(--font-display), sans-serif",
                 color: "#FFFFFF",
-                fontSize: "clamp(2.6rem, 5.2vw, 72px)",
+                fontSize: "clamp(2.4rem, 4.5vw, 56px)",
                 lineHeight: "1.0",
                 letterSpacing: "-0.04em",
                 fontWeight: "800",
-                textTransform: "uppercase",
+                textTransform: "none",
                 animation: "slideInLeft 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards",
               }}
             >
@@ -213,10 +213,10 @@ export default function Hero() {
             style={{
               position: "relative",
               width: "100%",
-              maxWidth: "500px",
+              maxWidth: "600px",
               height: "460px",
               display: "flex",
-              justifyContent: "center",
+              justifyContent: "flex-end",
               alignItems: "center",
             }}
           >

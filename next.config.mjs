@@ -10,6 +10,7 @@ const nextConfig = {
   images: {
     // Serve WebP automatically — 60–80% smaller than PNG/JPG at same quality
     formats: ['image/webp'],
+    qualities: [75, 80],
     // Breakpoints that match our 1/2/3 column responsive grid
     deviceSizes: [640, 768, 1024, 1280, 1536],
     imageSizes: [64, 128, 240, 360, 480],

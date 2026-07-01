@@ -1,3 +1,5 @@
+export const revalidate = 300;
+
 const DEFAULT_SETTINGS = {
   ContactEmail: "pmgraphics9526@gmail.com",
   Phone: "+91-9101811613",
@@ -49,7 +51,6 @@ export async function GET() {
       headers: {
         Authorization: `Bearer ${readKey}`,
       },
-      next: { revalidate: 10 }, // Cache on server for 10 seconds
     });
 
     if (!res.ok) {
