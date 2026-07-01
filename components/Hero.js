@@ -20,8 +20,14 @@ import { projects } from "@/components/projectsData";
 // Simple count-up hook for numbers
 function useCountUp(target, duration = 1500, trigger = true) {
   const [count, setCount] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    if (!trigger) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !trigger) return;
     let start = 0;
     const step = target / (duration / 16);
     const timer = setInterval(() => {
@@ -34,7 +40,8 @@ function useCountUp(target, duration = 1500, trigger = true) {
       }
     }, 16);
     return () => clearInterval(timer);
-  }, [trigger, target, duration]);
+  }, [mounted, trigger, target, duration]);
+  
   return count;
 }
 
@@ -275,7 +282,7 @@ export default function Hero() {
                 <div className="ball-x path-1-x delay-p1">
                   <div className="ball-y path-1-y delay-p1">
                     <Image
-                      src="/projects/editing icons/vecteezy_adobe-premiere-pro-icon_46437285.png"
+                      src="/projects/editing-icons/vecteezy_adobe-premiere-pro-icon_46437285.png"
                       alt="Premiere Pro"
                       width={48}
                       height={48}
@@ -290,7 +297,7 @@ export default function Hero() {
                 <div className="ball-x path-2-x delay-p2">
                   <div className="ball-y path-2-y delay-p2">
                     <Image
-                      src="/projects/editing icons/vecteezy_adobe-after-effects-icon_46437267.png"
+                      src="/projects/editing-icons/vecteezy_adobe-after-effects-icon_46437267.png"
                       alt="After Effects"
                       width={48}
                       height={48}
@@ -305,7 +312,7 @@ export default function Hero() {
                 <div className="ball-x path-3-x delay-p3">
                   <div className="ball-y path-3-y delay-p3">
                     <Image
-                      src="/projects/editing icons/vecteezy_adobe-photoshop-logo-transparent-background_46437272.png"
+                      src="/projects/editing-icons/vecteezy_adobe-photoshop-logo-transparent-background_46437272.png"
                       alt="Photoshop"
                       width={48}
                       height={48}
@@ -320,7 +327,7 @@ export default function Hero() {
                 <div className="ball-x path-4-x delay-p4">
                   <div className="ball-y path-4-y delay-p4">
                     <Image
-                      src="/projects/editing icons/vecteezy_adobe-illustrator-icon_46437283.png"
+                      src="/projects/editing-icons/vecteezy_adobe-illustrator-icon_46437283.png"
                       alt="Illustrator"
                       width={48}
                       height={48}

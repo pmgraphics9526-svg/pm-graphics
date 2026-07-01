@@ -14,9 +14,9 @@ const getCategoryCover = (category) => {
     case "FLYERS":
       return "/projects/Flyers.png";
     case "VIDEOS EDITING":
-      return "/projects/Videos Editing.png";
+      return "/projects/videos-editing.png";
     default:
-      return "/projects/pm logo.png";
+      return "/projects/pm-logo.png";
   }
 };
 

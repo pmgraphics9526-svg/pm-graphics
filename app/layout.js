@@ -22,14 +22,14 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata = {
   title: "PM Graphics — Strategic Brand & High-End Design Studio",
   description: "The premium portfolio of PM Graphics. Luxury minimalism, high-impact brand identity, event visuals, flyers, and video editing for visionary brands.",
-  metadataBase: new URL("https://pm-graphics.design"),
-  alternates: { canonical: "https://pm-graphics.design" },
+  metadataBase: new URL("https://pmgraphics.in"),
+  alternates: { canonical: "https://pmgraphics.in" },
   openGraph: {
     title: "PM Graphics — Strategic Brand & High-End Design Studio",
     description: "Premium branding, event visuals, flyers, and video editing studio based in Jorhat, Assam.",
     type: "website",
     locale: "en_US",
-    url: "https://pm-graphics.design",
+    url: "https://pmgraphics.in",
     siteName: "PM Graphics",
   },
   twitter: {
@@ -44,7 +44,7 @@ const jsonLd = {
   "@type": "ProfessionalService",
   name: "PM Graphics",
   description: "Premium graphic design studio specializing in brand identity, event visuals, flyers, and video editing.",
-  url: "https://pm-graphics.design",
+  url: "https://pmgraphics.in",
   address: {
     "@type": "PostalAddress",
     addressLocality: "Jorhat",
@@ -61,7 +61,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${syne.variable} ${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
-        <link rel="icon" href="/favicon.ico" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
