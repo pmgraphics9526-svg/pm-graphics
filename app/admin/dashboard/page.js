@@ -625,11 +625,8 @@ export default function AdminDashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               {/* Stats card */}
               <div style={{ display: "flex", gap: "24px" }}>
-                <div style={{
+                <div className="admin-card" style={{
                   flex: 1,
-                  backgroundColor: "#1a1a1a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "16px",
                   padding: "20px 24px",
                   display: "flex",
                   alignItems: "center",
@@ -685,13 +682,13 @@ export default function AdminDashboard() {
                   <Loader2 className="spinner" style={{ width: "28px", height: "28px", color: "#FF6B00" }} />
                 </div>
               ) : packagesList.length === 0 ? (
-                <div className="glass-card" style={{ textAlign: "center", padding: "40px 24px", color: "rgba(255,255,255,0.4)" }}>
+                <div className="admin-card" style={{ textAlign: "center", padding: "40px 24px", color: "rgba(255,255,255,0.4)" }}>
                   No packages currently configured. Click "Add New Package" to get started.
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
                   {packagesList.map((pkg) => (
-                    <div key={pkg.id} className="glass-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%" }}>
+                    <div key={pkg.id} className="admin-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%" }}>
                       <div>
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
                           <h4 style={{ fontSize: "18px", fontWeight: "700", color: "#FF6B00", margin: 0, fontFamily: "var(--font-space-grotesk), sans-serif", textTransform: "uppercase" }}>
@@ -800,7 +797,7 @@ export default function AdminDashboard() {
                     </h3>
                     
                     <form onSubmit={handleSavePackage} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                           <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Package Name</label>
                           <input 
@@ -936,7 +933,7 @@ export default function AdminDashboard() {
                   <Loader2 className="spinner" style={{ width: "28px", height: "28px", color: "#FF6B00" }} />
                 </div>
               ) : projects.length === 0 ? (
-                <div className="glass-card" style={{ textAlign: "center", padding: "40px 24px", color: "rgba(255,255,255,0.4)" }}>
+                <div className="admin-card" style={{ textAlign: "center", padding: "40px 24px", color: "rgba(255,255,255,0.4)" }}>
                   No items in the portfolio. Click "Upload Project" to upload your first work.
                 </div>
               ) : (
@@ -944,7 +941,7 @@ export default function AdminDashboard() {
                   {projects.map((project) => (
                     <div 
                       key={project.id} 
-                      className="glass-card"
+                      className="admin-card"
                       style={{
                         padding: 0,
                         display: "flex",
@@ -1091,7 +1088,7 @@ export default function AdminDashboard() {
                         </select>
                       </div>
 
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                           <label style={{ fontSize: "11.5px", fontWeight: "600", color: "rgba(255, 255, 255, 0.7)" }}>Client (Optional)</label>
                           <input 
@@ -1257,7 +1254,7 @@ export default function AdminDashboard() {
                   <Loader2 className="spinner" style={{ width: "28px", height: "28px", color: "#FF6B00" }} />
                 </div>
               ) : testimonials.length === 0 ? (
-                <div className="glass-card" style={{ textAlign: "center", padding: "40px 24px", color: "rgba(255,255,255,0.4)" }}>
+                <div className="admin-card" style={{ textAlign: "center", padding: "40px 24px", color: "rgba(255,255,255,0.4)" }}>
                   No testimonials submitted.
                 </div>
               ) : (
@@ -1271,7 +1268,7 @@ export default function AdminDashboard() {
                     return (
                       <div 
                         key={t.id} 
-                        className="glass-card"
+                        className="admin-card"
                         style={{
                           borderLeft: `4px solid ${statusColor}`,
                           display: "flex",
@@ -1363,7 +1360,7 @@ export default function AdminDashboard() {
           {/* 4. CONTACT PANEL */}
           {activeTab === "contact" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <form onSubmit={saveContact} className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "580px" }}>
+              <form onSubmit={saveContact} className="admin-card" style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "580px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#ffffff", margin: 0, textTransform: "uppercase", borderBottom: "1px solid #2a2a2a", paddingBottom: "14px" }}>
                   Contact Information Configuration
                 </h3>
