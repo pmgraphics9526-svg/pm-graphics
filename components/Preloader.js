@@ -7,15 +7,12 @@ export default function Preloader() {
   const [fade, setFade] = useState(false);
 
   useEffect(() => {
-    console.log("Preloader useEffect entered!");
     // Start fading/sliding up at 1.5s
     const fadeTimer = setTimeout(() => {
-      console.log("Preloader fade timeout fired!");
       setFade(true);
     }, 1500);
     // Unmount completely at 2.15s (after 0.65s transition completes)
     const removeTimer = setTimeout(() => {
-      console.log("Preloader remove timeout fired!");
       setVisible(false);
     }, 2150);
     return () => {

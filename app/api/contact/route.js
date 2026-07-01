@@ -16,14 +16,6 @@ export async function POST(request) {
 
     if (!baseId || !writeKey) {
       console.warn("[POST /api/contact] Missing Airtable configuration. Logging form payload as fallback:");
-      console.log({
-        Name: name,
-        Email: email,
-        ProjectType: projectType,
-        ProjectScale: projectScale,
-        ProjectBrief: message,
-        SubmittedDate: new Date().toISOString()
-      });
       // Fallback: If Web3Forms key is set, we still try Web3Forms
       const accessKey = process.env.WEB3FORMS_ACCESS_KEY;
       if (accessKey) {

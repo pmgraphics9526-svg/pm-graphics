@@ -72,14 +72,6 @@ export async function POST(request) {
 
 
     const envPasswordHash = process.env.ADMIN_PASSWORD;
-    console.log("--- DEBUG AUTH START ---");
-    console.log("Received password length:", password?.length);
-    console.log("Raw envPasswordHash:", envPasswordHash);
-    console.log("envPasswordHash type:", typeof envPasswordHash);
-    console.log("envPasswordHash length:", envPasswordHash?.length);
-    if (envPasswordHash) {
-      console.log("envPasswordHash character codes:", Array.from(envPasswordHash).map(c => c.charCodeAt(0)));
-    }
     
     if (!envPasswordHash) {
       console.error("ADMIN_PASSWORD is not set in environment variables");
@@ -93,11 +85,9 @@ export async function POST(request) {
     let isValid = false;
     try {
       isValid = bcrypt.compareSync(password, envPasswordHash);
-      console.log("Bcrypt comparison result:", isValid);
     } catch (compareError) {
       console.error("Bcrypt comparison error:", compareError);
     }
-    console.log("--- DEBUG AUTH END ---");
 
     if (!isValid) {
       record.attempts += 1;
