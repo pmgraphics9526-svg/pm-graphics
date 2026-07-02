@@ -166,6 +166,9 @@ export default function Hero() {
               Book a Free Call
               <PhoneCall size={16} />
             </button>
+            <a href="/learning-tools/learning-hero.html" className="btn-secondary" style={{ transition: "all 0.3s ease", textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              Skills Course
+            </a>
           </div>
 
           {/* Dynamic Stats Box */}

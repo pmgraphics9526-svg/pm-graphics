@@ -9,6 +9,7 @@ const navItems = [
   { label: "Expertise", id: "expertise" },
   { label: "About", id: "about" },
   { label: "Packages", id: "pricing" },
+  { label: "Learn", id: "learn" },
 ];
 
 export default function Navbar() {
@@ -66,6 +67,13 @@ export default function Navbar() {
 
   const handleNavClick = (id) => {
     setMobileMenuOpen(false);
+    
+    // Special handling for Learn link - navigate to learning tools
+    if (id === "learn") {
+      window.location.href = "/learning-tools/learning-hero.html";
+      return;
+    }
+    
     const element = document.getElementById(id);
     if (element) {
       const offset = 100;
@@ -79,6 +87,8 @@ export default function Navbar() {
         behavior: "smooth"
       });
       setActiveSection(id);
+    } else {
+      window.location.href = `/#${id}`;
     }
   };
 

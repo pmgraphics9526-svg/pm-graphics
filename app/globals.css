@@ -1076,3 +1076,92 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
+
+/* Level 1 Topic Grid 4-Column Layout */
+.level-topic-grid-4col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+.level-topic-card {
+  background-color: #FFFFFF !important;
+  border-radius: 16px;
+  padding: 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: space-between;
+  gap: 12px !important;
+  box-shadow: 0 4px 15px rgba(27,20,16,0.02);
+  border: 1px solid rgba(27,20,16,0.06) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  cursor: pointer;
+  min-height: 180px;
+  text-decoration: none;
+  width: 100%;
+}
+.level-topic-card:hover {
+  transform: translateY(-4px) !important;
+  border-color: #FFE6D4 !important;
+  box-shadow: 0 16px 36px rgba(27,20,16,.08) !important;
+}
+
+@media (max-width: 1200px) {
+  .level-topic-grid-4col {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .level-topic-grid-4col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .level-topic-grid-4col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Lesson Cards Grid Layout for Roadmap Level 1 */
+.lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+  width: 100%;
+}
+.lesson-card {
+  background-color: #FFFFFF !important;
+  border-radius: 14px;
+  padding: 16px !important;
+  border: 1px solid rgba(27, 20, 16, 0.06) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  box-shadow: 0 4px 12px rgba(27, 20, 16, 0.02);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  text-decoration: none;
+  min-height: 142px;
+}
+.lesson-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: #FFE6D4 !important;
+  box-shadow: 0 10px 24px rgba(27, 20, 16, 0.06) !important;
+}
+
+@media (max-width: 1200px) {
+  .lesson-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .lesson-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .lesson-grid {
+    grid-template-columns: 1fr;
+  }
+}
