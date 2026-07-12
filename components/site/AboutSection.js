@@ -49,7 +49,7 @@ export default function AboutSection() {
           {/* Biography */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p className="font-body-lg" style={{ color: "var(--text-secondary)", lineHeight: "1.8" }}>
-              Papon is a passionate graphic designer and visual storyteller with 2+ years of experience in branding, event graphics, flyer design, and video editing. He founded PM Graphics with one goal — to help businesses and individuals stand out with powerful, purposeful design.
+              Papon is a passionate graphic designer and visual storyteller with 5+ years of experience in branding, event graphics, flyer design, and video editing. He founded PM Graphics with one goal — to help businesses and individuals stand out with powerful, purposeful design.
             </p>
 
             {/* Capability Cards Grid */}

@@ -233,13 +233,13 @@ export default function LayoutLab(){
         <div style={{marginBottom:26}}>
           <div style={{fontSize:11,letterSpacing:3,color:T.brand,fontWeight:700,marginBottom:8}}>LAYOUT & COMPOSITION · TOOL</div>
           <h1 style={{fontSize:30,fontFamily:"Georgia,serif",margin:"0 0 5px",color:T.white}}>LayoutLab</h1>
-          <p style={{fontSize:12.5,color:T.dim,margin:0}}>Pick your grid · Check if it's right · Apply a suggestion</p>
+          <p style={{fontSize:12,color:T.dim,margin:0}}>Pick your grid · Check if it&apos;s right · Apply a suggestion</p>
         </div>
 
         {/* Section toggle */}
         <div style={{display:"flex",gap:0,marginBottom:28,background:T.panel2,borderRadius:12,padding:4,border:`1px solid ${T.border}`}}>
           {[{id:"pick",label:"Pick Your Grid"},{id:"check",label:"Is It Good?"}].map(s=>(
-            <button key={s.id} onClick={()=>setSection(s.id)} style={{flex:1,padding:"12px 8px",background:section===s.id?T.brand:"transparent",border:"none",borderRadius:9,color:section===s.id?"#101010":T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>{s.label}</button>
+            <button key={s.id} onClick={()=>setSection(s.id)} style={{flex:1,padding:"12px 8px",background:section===s.id?T.brand:"transparent",border:"none",borderRadius:9,color:section===s.id?"#FFFFFF":T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>{s.label}</button>
           ))}
         </div>
 
@@ -425,7 +425,7 @@ export default function LayoutLab(){
                       {GRID_TYPES.find(g=>g.id===s.grid)?.name} · Gutter {s.gutter}px · Margin {s.margin}px
                     </div>
                   </div>
-                  <button onClick={()=>applySuggestion(s)} style={{padding:"7px 14px",background:appliedSuggestion===s.name?T.green:T.brand,border:"none",borderRadius:8,color:appliedSuggestion===s.name?"#FFFFFF":"#101010",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                  <button onClick={()=>applySuggestion(s)} style={{padding:"7px 14px",background:appliedSuggestion===s.name?T.green:T.brand,border:"none",borderRadius:8,color:"#FFFFFF",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
                     {appliedSuggestion===s.name?"Applied ✓":"Apply"}
                   </button>
                 </div>
