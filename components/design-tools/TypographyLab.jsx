@@ -1,5 +1,9 @@
 import{useState,useRef,useEffect}from"react";
-const T={bg:"#FDF8F0",panel:"#FFFFFF",panel2:"#FFFFFF",border:"#E8DFCF",text:"#3A342A",muted:"#6B6258",dim:"#A79C8C",brand:"#FF7A00",white:"#1A1512",green:"#1E9E5A",red:"#D2334F"};
+const T={bg:"#0B0B0B",panel:"#1A1A1A",panel2:"#1A1A1A",border:"rgba(255,255,255,0.1)",text:"#EDEDED",muted:"#AAAAAA",dim:"#999999",brand:"#FF7A00",white:"#FFFFFF",green:"#3ECB71",red:"#FF5C7A"};
+// Canvas-local text colours: the live type preview stays a light "paper"
+// card (readable font demo) regardless of site theme, so its own text must
+// stay dark — not read off T.white/T.muted, which are now light.
+const CV_TEXT="#1A1512",CV_MUTED="#6B6258";
 
 const FONTS=[
   {name:"Playfair Display",stack:"'Playfair Display', serif",cat:"Display Serif",g:"Playfair+Display:wght@400;700;900",vibe:"Luxury, fashion, editorial"},
@@ -120,7 +124,7 @@ export default function TypographyLab(){
             <Card style={{marginBottom:16}}>
               <div style={{fontSize:10,color:T.dim,letterSpacing:2,marginBottom:12}}>LIVE PREVIEW · {bf.name}</div>
               <div style={{background:"#FFFFFF",borderRadius:12,padding:20,border:`1px solid ${T.border}`}}>
-                <div style={{fontFamily:bf.stack,fontSize:size,fontWeight:weight,lineHeight:lh,letterSpacing:`${tracking}em`,color:T.white,transition:"all .12s"}}>{bodyText}</div>
+                <div style={{fontFamily:bf.stack,fontSize:size,fontWeight:weight,lineHeight:lh,letterSpacing:`${tracking}em`,color:CV_TEXT,transition:"all .12s"}}>{bodyText}</div>
               </div>
               <div style={{fontSize:11.5,color:T.dim,marginTop:10}}>💡 {bf.vibe}</div>
             </Card>
@@ -170,8 +174,8 @@ export default function TypographyLab(){
               <Card style={{marginBottom:16}}>
                 <div style={{fontSize:10,color:T.dim,letterSpacing:2,marginBottom:12}}>LIVE PAIRING · {hf.name} + {bf.name}</div>
                 <div style={{background:"#FFFFFF",borderRadius:12,padding:20,border:`1px solid ${T.border}`}}>
-                  <div style={{fontFamily:hf.stack,fontSize:28,fontWeight:700,color:T.white,lineHeight:1.2,marginBottom:10}}>{headText}</div>
-                  <div style={{fontFamily:bf.stack,fontSize:15,color:T.muted,lineHeight:1.6}}>{bodyText}</div>
+                  <div style={{fontFamily:hf.stack,fontSize:28,fontWeight:700,color:CV_TEXT,lineHeight:1.2,marginBottom:10}}>{headText}</div>
+                  <div style={{fontFamily:bf.stack,fontSize:15,color:CV_MUTED,lineHeight:1.6}}>{bodyText}</div>
                 </div>
               </Card>
               <Card>
@@ -233,7 +237,7 @@ export default function TypographyLab(){
                       </div>
                       <div style={{fontSize:11,color:T.dim,lineHeight:1.5}}>{p.note}</div>
                     </div>
-                    <button onClick={()=>applyPairing(i)} style={{padding:"7px 14px",background:activePairing===i?T.green:T.brand,border:"none",borderRadius:8,color:"#FFFFFF",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                    <button onClick={()=>applyPairing(i)} style={{padding:"7px 14px",background:activePairing===i?T.green:T.brand,border:"none",borderRadius:8,color:activePairing===i?"#FFFFFF":"#101010",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
                       {activePairing===i?"Applied ✓":"Apply"}
                     </button>
                   </div>

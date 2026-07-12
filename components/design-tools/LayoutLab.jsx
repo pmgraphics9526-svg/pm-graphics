@@ -1,5 +1,8 @@
 import{useState,useRef}from"react";
-const T={bg:"#FDF8F0",panel:"#FFFFFF",panel2:"#FFFFFF",border:"#E8DFCF",text:"#3A342A",muted:"#6B6258",dim:"#A79C8C",brand:"#FF7A00",white:"#1A1512",green:"#1E9E5A",red:"#D2334F",blue:"#3B82F6"};
+const T={bg:"#0B0B0B",panel:"#1A1A1A",panel2:"#1A1A1A",border:"rgba(255,255,255,0.1)",text:"#EDEDED",muted:"#AAAAAA",dim:"#999999",brand:"#FF7A00",white:"#FFFFFF",green:"#3ECB71",red:"#FF5C7A",blue:"#5B9CFF"};
+// Canvas-local colours: the artboard mockups intentionally stay light/white
+// paper regardless of site theme, so they don't read off T.border/T.panel2.
+const CV_BORDER="#E8DFCF",CV_PANEL="#FFFFFF";
 
 const GRID_TYPES=[
   {id:"manuscript",name:"Manuscript",cols:1,icon:"▬",desc:"Single column. Books, documentation, long-form articles.",useCase:"Best for: blog posts, articles, readability-first layouts.",rules:{col:1,gutterMin:0,gutterMax:0,marginMin:40,lineH:1.6}},
@@ -44,7 +47,7 @@ function GridCanvas({type,gutter,margin,showGuides}){
   const cols=g.cols>6?6:g.cols;
 
   return(
-    <div style={{background:"#FFFFFF",borderRadius:10,padding:margin,border:`1px solid ${T.border}`,position:"relative",minHeight:150,overflow:"hidden"}}>
+    <div style={{background:CV_PANEL,borderRadius:10,padding:margin,border:`1px solid ${CV_BORDER}`,position:"relative",minHeight:150,overflow:"hidden"}}>
       {showGuides&&(
         <div style={{position:"absolute",inset:0,display:"flex",padding:margin,gap:0,pointerEvents:"none"}}>
           {isAsym?(
@@ -61,10 +64,10 @@ function GridCanvas({type,gutter,margin,showGuides}){
         {type==="manuscript"&&(
           <div style={{maxWidth:"65%",margin:"0 auto"}}>
             <div style={{height:11,background:T.brand,borderRadius:3,marginBottom:12,width:"75%",opacity:0.85}}/>
-            <div style={{height:6,background:T.border,borderRadius:2,marginBottom:5}}/>
-            <div style={{height:6,background:T.border,borderRadius:2,marginBottom:5,width:"92%"}}/>
-            <div style={{height:6,background:T.border,borderRadius:2,marginBottom:5,width:"86%"}}/>
-            <div style={{height:6,background:T.border,borderRadius:2,marginBottom:18,width:"94%"}}/>
+            <div style={{height:6,background:CV_BORDER,borderRadius:2,marginBottom:5}}/>
+            <div style={{height:6,background:CV_BORDER,borderRadius:2,marginBottom:5,width:"92%"}}/>
+            <div style={{height:6,background:CV_BORDER,borderRadius:2,marginBottom:5,width:"86%"}}/>
+            <div style={{height:6,background:CV_BORDER,borderRadius:2,marginBottom:18,width:"94%"}}/>
             <div style={{height:6,background:"#E3D8C4",borderRadius:2,marginBottom:5}}/>
             <div style={{height:6,background:"#E3D8C4",borderRadius:2,marginBottom:5,width:"88%"}}/>
             <div style={{height:6,background:"#E3D8C4",borderRadius:2,width:"72%"}}/>
@@ -74,12 +77,12 @@ function GridCanvas({type,gutter,margin,showGuides}){
           <div style={{display:"flex",gap:gutter}}>
             <div style={{flex:1}}>
               <div style={{height:9,background:T.brand,borderRadius:3,marginBottom:10,width:"80%",opacity:0.85}}/>
-              <div style={{height:5,background:T.border,borderRadius:2,marginBottom:5}}/>
-              <div style={{height:5,background:T.border,borderRadius:2,marginBottom:5,width:"85%"}}/>
-              <div style={{height:5,background:T.border,borderRadius:2,width:"90%"}}/>
+              <div style={{height:5,background:CV_BORDER,borderRadius:2,marginBottom:5}}/>
+              <div style={{height:5,background:CV_BORDER,borderRadius:2,marginBottom:5,width:"85%"}}/>
+              <div style={{height:5,background:CV_BORDER,borderRadius:2,width:"90%"}}/>
             </div>
             <div style={{flex:1}}>
-              <div style={{height:9,background:T.border,borderRadius:3,marginBottom:10,width:"65%"}}/>
+              <div style={{height:9,background:CV_BORDER,borderRadius:3,marginBottom:10,width:"65%"}}/>
               <div style={{height:5,background:"#E3D8C4",borderRadius:2,marginBottom:5}}/>
               <div style={{height:5,background:"#E3D8C4",borderRadius:2,marginBottom:5,width:"78%"}}/>
               <div style={{height:22,background:"rgba(255,122,0,0.12)",borderRadius:5,marginTop:10,border:`1px solid rgba(255,122,0,0.3)`}}/>
@@ -90,8 +93,8 @@ function GridCanvas({type,gutter,margin,showGuides}){
           <div style={{display:"flex",gap:gutter}}>
             <div style={{flex:1}}>
               <div style={{height:9,background:T.brand,borderRadius:3,marginBottom:10,width:"85%",opacity:0.85}}/>
-              <div style={{height:5,background:T.border,borderRadius:2,marginBottom:5}}/>
-              <div style={{height:5,background:T.border,borderRadius:2,marginBottom:14,width:"80%"}}/>
+              <div style={{height:5,background:CV_BORDER,borderRadius:2,marginBottom:5}}/>
+              <div style={{height:5,background:CV_BORDER,borderRadius:2,marginBottom:14,width:"80%"}}/>
               <div style={{height:22,background:T.brand,borderRadius:5,opacity:0.8,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{height:4,width:"50%",background:"#FFFFFF",borderRadius:2,opacity:0.5}}/></div>
             </div>
             <div style={{flex:2}}>
@@ -104,10 +107,10 @@ function GridCanvas({type,gutter,margin,showGuides}){
         {type==="col3"&&(
           <div style={{display:"flex",gap:gutter}}>
             {[T.brand,"#D9CDB8","#C9BCA0"].map((bg,i)=>(
-              <div key={i} style={{flex:1,background:T.panel2,borderRadius:6,padding:8,border:`1px solid ${T.border}`}}>
+              <div key={i} style={{flex:1,background:CV_PANEL,borderRadius:6,padding:8,border:`1px solid ${CV_BORDER}`}}>
                 <div style={{height:26,background:bg,borderRadius:4,marginBottom:8,opacity:i===0?0.8:0.35}}/>
-                <div style={{height:5,background:T.border,borderRadius:2,marginBottom:4}}/>
-                <div style={{height:5,background:T.border,borderRadius:2,width:"70%"}}/>
+                <div style={{height:5,background:CV_BORDER,borderRadius:2,marginBottom:4}}/>
+                <div style={{height:5,background:CV_BORDER,borderRadius:2,width:"70%"}}/>
               </div>
             ))}
           </div>
@@ -115,8 +118,8 @@ function GridCanvas({type,gutter,margin,showGuides}){
         {type==="col4"&&(
           <div style={{display:"flex",gap:gutter}}>
             {[0,1,2,3].map(i=>(
-              <div key={i} style={{flex:1,background:T.panel2,borderRadius:4,padding:6,border:`1px solid ${T.border}`}}>
-                <div style={{height:18,background:i===0?T.brand:T.border,borderRadius:3,marginBottom:6,opacity:i===0?0.8:0.35}}/>
+              <div key={i} style={{flex:1,background:CV_PANEL,borderRadius:4,padding:6,border:`1px solid ${CV_BORDER}`}}>
+                <div style={{height:18,background:i===0?T.brand:CV_BORDER,borderRadius:3,marginBottom:6,opacity:i===0?0.8:0.35}}/>
                 <div style={{height:4,background:"#E3D8C4",borderRadius:2,marginBottom:3}}/>
                 <div style={{height:4,background:"#EDE4D3",borderRadius:2,width:"65%"}}/>
               </div>
@@ -127,22 +130,22 @@ function GridCanvas({type,gutter,margin,showGuides}){
           <div>
             <div style={{display:"flex",gap:gutter/2,marginBottom:gutter/2}}>
               {Array.from({length:6}).map((_,i)=>(
-                <div key={i} style={{flex:1,height:7,background:T.border,borderRadius:2,opacity:0.4}}/>
+                <div key={i} style={{flex:1,height:7,background:CV_BORDER,borderRadius:2,opacity:0.4}}/>
               ))}
             </div>
             <div style={{display:"flex",gap:gutter/2,marginBottom:gutter/2}}>
-              <div style={{flex:4,background:T.panel2,borderRadius:4,padding:8,border:`1px solid ${T.border}`}}>
+              <div style={{flex:4,background:CV_PANEL,borderRadius:4,padding:8,border:`1px solid ${CV_BORDER}`}}>
                 <div style={{height:7,background:T.brand,borderRadius:2,marginBottom:6,width:"80%",opacity:0.8}}/>
-                <div style={{height:4,background:T.border,borderRadius:2,marginBottom:4}}/>
+                <div style={{height:4,background:CV_BORDER,borderRadius:2,marginBottom:4}}/>
                 <div style={{height:4,background:"#E3D8C4",borderRadius:2,width:"85%"}}/>
               </div>
-              <div style={{flex:4,background:T.panel2,borderRadius:4,padding:8,border:`1px solid ${T.border}`}}>
-                <div style={{height:7,background:T.border,borderRadius:2,marginBottom:6,width:"70%",opacity:0.6}}/>
+              <div style={{flex:4,background:CV_PANEL,borderRadius:4,padding:8,border:`1px solid ${CV_BORDER}`}}>
+                <div style={{height:7,background:CV_BORDER,borderRadius:2,marginBottom:6,width:"70%",opacity:0.6}}/>
                 <div style={{height:4,background:"#E3D8C4",borderRadius:2,marginBottom:4}}/>
                 <div style={{height:4,background:"#EDE4D3",borderRadius:2,width:"80%"}}/>
               </div>
-              <div style={{flex:4,background:T.panel2,borderRadius:4,padding:8,border:`1px solid ${T.border}`}}>
-                <div style={{height:7,background:T.border,borderRadius:2,marginBottom:6,width:"60%",opacity:0.5}}/>
+              <div style={{flex:4,background:CV_PANEL,borderRadius:4,padding:8,border:`1px solid ${CV_BORDER}`}}>
+                <div style={{height:7,background:CV_BORDER,borderRadius:2,marginBottom:6,width:"60%",opacity:0.5}}/>
                 <div style={{height:4,background:"#E3D8C4",borderRadius:2,marginBottom:4}}/>
                 <div style={{height:4,background:"#EDE4D3",borderRadius:2,width:"75%"}}/>
               </div>
@@ -159,7 +162,7 @@ function GridCanvas({type,gutter,margin,showGuides}){
             {[0,1,2].map(row=>(
               <div key={row} style={{display:"flex",gap:gutter/2}}>
                 {[0,1,2].map(col=>(
-                  <div key={col} style={{flex:1,background:row===0&&col===0?"rgba(255,122,0,0.25)":row===0?"rgba(255,122,0,0.1)":T.panel2,borderRadius:3,height:32,border:`1px solid ${row===0&&col===0?"rgba(255,122,0,0.4)":T.border}`,opacity:row===2?0.5:1}}/>
+                  <div key={col} style={{flex:1,background:row===0&&col===0?"rgba(255,122,0,0.25)":row===0?"rgba(255,122,0,0.1)":CV_PANEL,borderRadius:3,height:32,border:`1px solid ${row===0&&col===0?"rgba(255,122,0,0.4)":CV_BORDER}`,opacity:row===2?0.5:1}}/>
                 ))}
               </div>
             ))}
@@ -236,7 +239,7 @@ export default function LayoutLab(){
         {/* Section toggle */}
         <div style={{display:"flex",gap:0,marginBottom:28,background:T.panel2,borderRadius:12,padding:4,border:`1px solid ${T.border}`}}>
           {[{id:"pick",label:"Pick Your Grid"},{id:"check",label:"Is It Good?"}].map(s=>(
-            <button key={s.id} onClick={()=>setSection(s.id)} style={{flex:1,padding:"12px 8px",background:section===s.id?T.brand:"transparent",border:"none",borderRadius:9,color:section===s.id?"#FFFFFF":T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>{s.label}</button>
+            <button key={s.id} onClick={()=>setSection(s.id)} style={{flex:1,padding:"12px 8px",background:section===s.id?T.brand:"transparent",border:"none",borderRadius:9,color:section===s.id?"#101010":T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>{s.label}</button>
           ))}
         </div>
 
@@ -374,11 +377,11 @@ export default function LayoutLab(){
 
               <div style={{background:T.panel2,borderRadius:10,padding:14,border:`1px solid ${T.border}`}}>
                 <div style={{fontSize:11,letterSpacing:3,color:T.dim,fontWeight:700,marginBottom:10}}>LIVE PREVIEW AT YOUR VALUES</div>
-                <div style={{background:"#FFFFFF",borderRadius:8,padding:checkerMargin,border:`1px solid ${T.border}`}}>
+                <div style={{background:CV_PANEL,borderRadius:8,padding:checkerMargin,border:`1px solid ${CV_BORDER}`}}>
                   <div style={{display:"flex",gap:checkerGutter,marginBottom:checkerGutter}}>
                     {Array.from({length:Math.min(checkerCols,4)}).map((_,i)=>(
-                      <div key={i} style={{flex:1,background:T.panel2,borderRadius:4,padding:checkerBaseline,border:`1px solid ${T.border}`}}>
-                        <div style={{height:checkerBodySize*1.15,background:i===0?T.brand:T.border,borderRadius:3,marginBottom:checkerBaseline/2,opacity:i===0?0.8:0.4}}/>
+                      <div key={i} style={{flex:1,background:CV_PANEL,borderRadius:4,padding:checkerBaseline,border:`1px solid ${CV_BORDER}`}}>
+                        <div style={{height:checkerBodySize*1.15,background:i===0?T.brand:CV_BORDER,borderRadius:3,marginBottom:checkerBaseline/2,opacity:i===0?0.8:0.4}}/>
                         <div style={{height:checkerBodySize*0.65,background:"#E3D8C4",borderRadius:2,marginBottom:Math.round(checkerBaseline*checkerLineH/2),width:"88%"}}/>
                         <div style={{height:checkerBodySize*0.65,background:"#EDE4D3",borderRadius:2,width:"72%"}}/>
                       </div>
@@ -386,7 +389,7 @@ export default function LayoutLab(){
                   </div>
                   <div style={{display:"flex",gap:checkerGutter}}>
                     {Array.from({length:Math.min(checkerCols,4)}).map((_,i)=>(
-                      <div key={i} style={{flex:1,height:checkerBaseline*2,background:T.panel,borderRadius:3,border:`1px solid ${T.border}`}}/>
+                      <div key={i} style={{flex:1,height:checkerBaseline*2,background:CV_PANEL,borderRadius:3,border:`1px solid ${CV_BORDER}`}}/>
                     ))}
                   </div>
                 </div>
@@ -422,7 +425,7 @@ export default function LayoutLab(){
                       {GRID_TYPES.find(g=>g.id===s.grid)?.name} · Gutter {s.gutter}px · Margin {s.margin}px
                     </div>
                   </div>
-                  <button onClick={()=>applySuggestion(s)} style={{padding:"7px 14px",background:appliedSuggestion===s.name?T.green:T.brand,border:"none",borderRadius:8,color:"#FFFFFF",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                  <button onClick={()=>applySuggestion(s)} style={{padding:"7px 14px",background:appliedSuggestion===s.name?T.green:T.brand,border:"none",borderRadius:8,color:appliedSuggestion===s.name?"#FFFFFF":"#101010",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
                     {appliedSuggestion===s.name?"Applied ✓":"Apply"}
                   </button>
                 </div>

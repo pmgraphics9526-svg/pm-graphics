@@ -1,10 +1,14 @@
 import { useState, useRef } from "react";
 
 const T = {
-  bg: "#FDF8F0", panel: "#FFFFFF", panel2: "#FFFFFF", border: "#E8DFCF",
-  text: "#3A342A", muted: "#6B6258", dim: "#A79C8C", brand: "#FF7A00",
-  white: "#1A1512", green: "#1E9E5A", red: "#D2334F", blue: "#2563EB",
+  bg: "#0B0B0B", panel: "#1A1A1A", panel2: "#1A1A1A", border: "rgba(255,255,255,0.1)",
+  text: "#EDEDED", muted: "#AAAAAA", dim: "#999999", brand: "#FF7A00",
+  white: "#FFFFFF", green: "#3ECB71", red: "#FF5C7A", blue: "#5B9CFF",
 };
+// Canvas-local colour: shape/boolean-op preview artboards intentionally stay
+// white paper regardless of site theme (boolean "holes" must match this bg
+// exactly to read as cutouts) — not read from T.panel.
+const CV_PANEL = "#FFFFFF";
 
 function Card({ children, style = {} }) {
   return <div style={{ background: T.panel2, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20, ...style }}>{children}</div>;
@@ -62,7 +66,7 @@ function ShapePreview({ type, size, radius, fill, stroke, strokeW }) {
 
   return (
     <svg viewBox="0 0 200 200" width="100%" style={{ maxHeight: 240, display: "block" }}>
-      <rect width="200" height="200" fill={T.panel} rx="12" />
+      <rect width="200" height="200" fill={CV_PANEL} rx="12" />
       {[40, 80, 120, 160].map(x => [40, 80, 120, 160].map(y => (
         <circle key={`${x}${y}`} cx={x} cy={y} r={1} fill={T.border} />
       )))}
@@ -209,7 +213,7 @@ function BooleanLab() {
     if (op === "subtract") return (
       <>
         <BoolShape type={shapeA} cx={ax} cy={ay} r={r} fill={T.brand} opacity={0.9} />
-        <BoolShape type={shapeB} cx={bx} cy={by} r={r} fill={T.panel} opacity={1} />
+        <BoolShape type={shapeB} cx={bx} cy={by} r={r} fill={CV_PANEL} opacity={1} />
       </>
     );
     if (op === "intersect") return (
@@ -228,7 +232,7 @@ function BooleanLab() {
         <BoolShape type={shapeB} cx={bx} cy={by} r={r} fill={T.brand} opacity={0.9} />
         <svg x={ax - r} y={ay - r} width={r * 2 + 20} height={r * 2} overflow="visible">
           <defs><clipPath id="clipExA"><BoolShape type={shapeA} cx={r} cy={r} r={r} fill="white" /></clipPath></defs>
-          <BoolShape type={shapeB} cx={bx - ax + r} cy={r} r={r} fill={T.panel} clipPath="url(#clipExA)" />
+          <BoolShape type={shapeB} cx={bx - ax + r} cy={r} r={r} fill={CV_PANEL} clipPath="url(#clipExA)" />
         </svg>
       </>
     );
@@ -249,7 +253,7 @@ function BooleanLab() {
           </div>
           <div style={{ flex: 2 }}>
             <div style={{ fontSize: 11, color: T.dim, letterSpacing: 2, marginBottom: 8 }}>RESULT</div>
-            <div style={{ background: T.panel, borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ background: CV_PANEL, borderRadius: 12, overflow: "hidden" }}>
               <svg viewBox="0 0 200 140" width="100%">{renderResult()}</svg>
             </div>
           </div>
@@ -360,7 +364,7 @@ function BrandFit() {
             <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 14 }}>
               <div style={{ flexShrink: 0, textAlign: "center" }}>
                 <svg viewBox="0 0 80 80" width={70} height={70}>
-                  <rect width={80} height={80} fill={T.panel} rx={10} />
+                  <rect width={80} height={80} fill={CV_PANEL} rx={10} />
                   <circle cx={40} cy={40} r={26} fill={rec.color} opacity={0.9} />
                 </svg>
               </div>
@@ -403,7 +407,7 @@ const SUGGESTION_CARDS = [
 ];
 
 function ShapeViz({ sk }) {
-  const f = T.brand, f2 = "#FF9A33", bg = T.panel;
+  const f = T.brand, f2 = "#FF9A33", bg = CV_PANEL;
   const S = {
     circle:        <><circle cx="60" cy="50" r="32" fill={f} /></>,
     circle_rect:   <><circle cx="38" cy="50" r="22" fill={f} /><rect x="64" y="30" width="44" height="40" rx="12" fill={f} opacity={0.6} /></>,
@@ -523,7 +527,7 @@ export default function ShapeLab() {
         {/* Sub-tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 24, background: T.panel, borderRadius: 12, padding: 5 }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: "9px 6px", background: tab === t.id ? T.brand : "transparent", border: "none", borderRadius: 9, color: tab === t.id ? "#FFFFFF" : T.muted, cursor: "pointer", fontSize: 12, fontWeight: tab === t.id ? 700 : 400, transition: "all .15s" }}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: "9px 6px", background: tab === t.id ? T.brand : "transparent", border: "none", borderRadius: 9, color: tab === t.id ? "#101010" : T.muted, cursor: "pointer", fontSize: 12, fontWeight: tab === t.id ? 700 : 400, transition: "all .15s" }}>{t.label}</button>
           ))}
         </div>
 

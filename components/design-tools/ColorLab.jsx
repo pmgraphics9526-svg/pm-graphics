@@ -103,8 +103,8 @@ const COMBOS_3 = [
 ];
 
 const T = {
-  bg: "#FDF8F0", panel: "#FFFFFF", border: "#E8DFCF", line: "#F0E8DC",
-  text: "#3A342A", muted: "#6B6258", dim: "#A79C8C", brand: "#FF7A00",
+  bg: "#0B0B0B", panel: "#1A1A1A", border: "rgba(255,255,255,0.1)", line: "rgba(255,255,255,0.08)",
+  text: "#EDEDED", muted: "#AAAAAA", dim: "#999999", brand: "#FF7A00",
 };
 
 export default function ColorTheoryLab() {
@@ -145,7 +145,7 @@ export default function ColorTheoryLab() {
           .ctl-grid { grid-template-columns: 1fr 1fr; gap: 44px; max-width: 1000px; align-items: start; }
           .ctl-head { max-width: 1000px; margin: 0 auto 36px; }
         }
-        .ctl-suggest-btn:hover { background: ${T.brand}; color: #FFFFFF; }
+        .ctl-suggest-btn:hover { background: ${T.brand}; color: #101010; }
         .ctl-combo:hover { border-color: ${T.brand}; }
       `}</style>
 
@@ -171,7 +171,7 @@ export default function ColorTheoryLab() {
                 style={{
                   flex: 1, padding: "11px 0", borderRadius: 9, border: "none", cursor: "pointer",
                   fontSize: 13, fontWeight: 700, transition: "all .2s",
-                  background: mode === m ? T.brand : "transparent", color: mode === m ? "#FFFFFF" : T.muted,
+                  background: mode === m ? T.brand : "transparent", color: mode === m ? "#101010" : T.muted,
                 }}>
                 {m} Colours
               </button>
