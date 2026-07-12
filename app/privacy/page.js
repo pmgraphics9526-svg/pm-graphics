@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
         <h1 style={{ fontFamily: "var(--font-space-grotesk), sans-serif", fontSize: "clamp(2rem, 5vw, 3rem)", fontWeight: "800", textTransform: "uppercase", letterSpacing: "-0.03em", marginBottom: "16px" }}>
           Privacy Policy
         </h1>
-        <p style={{ color: "#888888", marginBottom: "48px", fontSize: "14px" }}>Last updated: June 2026</p>
+        <p style={{ color: "#888888", marginBottom: "48px", fontSize: "14px" }}>Last updated: July 2026</p>
 
         {[
           {
@@ -34,6 +34,14 @@ export default function PrivacyPolicy() {
           {
             title: "Cookies",
             body: "This website does not use tracking cookies or analytics scripts. No cookie consent banner is required.",
+          },
+          {
+            title: "Free Tools & Your Files",
+            body: "All free tools on this website (including the audio and design tools) process your files entirely within your own browser. Your files are never uploaded to, stored on, or seen by our servers. Once you close the page, your files remain only on your device.",
+          },
+          {
+            title: "Your Rights",
+            body: "You may request access to or deletion of any personal information you have submitted through the contact form by emailing us at pmgraphics9526@gmail.com. We will action such requests within a reasonable time.",
           },
           {
             title: "Contact",

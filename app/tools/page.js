@@ -1,180 +1,123 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
+import React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Palette, Type, Shapes, LayoutGrid } from "lucide-react";
+import { Palette, Type, Shapes, LayoutGrid, Music, Scissors, Sparkles } from "lucide-react";
+import Navbar from "@/components/Navbar";
+import WhatsAppCTA from "@/components/music-mixer/WhatsAppCTA";
+import "./tools.css"; // Import new stylesheet
+import "./music-mixer/music-mixer.css";
 
-const ColorLab = dynamic(() => import("../../learning-tools/ColorLab.jsx"), { ssr: false });
-const TypographyLab = dynamic(() => import("../../learning-tools/TypographyLab.jsx"), { ssr: false });
-const ShapeLab = dynamic(() => import("../../learning-tools/ShapeLab.jsx"), { ssr: false });
-const LayoutLab = dynamic(() => import("../../learning-tools/LayoutLab.jsx"), { ssr: false });
+const designTools = [
+  {
+    title: "Colour",
+    description: "Interactive color wheel to build professional, harmonious brand palettes.",
+    icon: <Palette size={20} />,
+    href: "/tools/color"
+  },
+  {
+    title: "Typography",
+    description: "Preview Google Fonts instantly to find the perfect pairing for your brand.",
+    icon: <Type size={20} />,
+    href: "/tools/typography"
+  },
+  {
+    title: "Shapes",
+    description: "Explore geometric and organic shapes and understand their psychological impact.",
+    icon: <Shapes size={20} />,
+    href: "/tools/shape"
+  },
+  {
+    title: "Layout",
+    description: "Learn to build structured layouts using grids, hierarchy, and whitespace.",
+    icon: <LayoutGrid size={20} />,
+    href: "/tools/layout"
+  }
+];
 
-const theme = {
-  cream: "#FFFCF9",
-  ink: "#1B1410",
-  inkSoft: "#5B4E46",
-  orange500: "#FF8A47",
-  orange600: "#FF6E2E",
-  orange700: "#E85A1B",
-  orange100: "#FFE6D4",
-  orange50: "#FFF6EF",
-  white: "#FFFFFF",
-};
+const audioTools = [
+  {
+    title: "Audio Trim",
+    description: "Upload an audio file, select the exact portion you want to keep, and download the trimmed MP3 instantly.",
+    icon: <Scissors size={20} />,
+    href: "/tools/audio-trim"
+  },
+  {
+    title: "Noise Reduce",
+    description: "Upload a voice recording and let our AI-powered denoiser remove background hiss and hum.",
+    icon: <Sparkles size={20} />,
+    href: "/tools/noise-reduce"
+  },
+  {
+    title: "Music Mixer",
+    description: "Cut and blend up to 4 songs into one seamless track with automatic crossfades and beat snapping.",
+    icon: <Music size={20} />,
+    href: "/tools/music-mixer"
+  }
+];
 
-function ToolsContent() {
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState(
-    tabParam === "typography" ? "typography" : 
-    tabParam === "shape" ? "shape" : 
-    tabParam === "layout" ? "layout" : 
-    "color"
-  );
-
-  // Sync if URL param changes
-  useEffect(() => {
-    setActiveTab(
-      tabParam === "typography" ? "typography" : 
-      tabParam === "shape" ? "shape" : 
-      tabParam === "layout" ? "layout" : 
-      "color"
-    );
-  }, [tabParam]);
-
+function ToolCard({ tool }) {
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: theme.cream, color: theme.ink, fontFamily: "var(--font-inter), sans-serif" }}>
-
-      {/* Top Bar */}
-      <div style={{
-        backgroundColor: theme.white,
-        borderBottom: `1px solid ${theme.orange100}`,
-        padding: "0 24px",
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        gap: "24px",
-        height: "60px",
-      }}>
-        {/* Back */}
-        <Link href="/learning-tools/learning-hero.html" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "6px", color: theme.inkSoft, fontSize: "14px", fontWeight: 600, flexShrink: 0 }}>
-          <ArrowLeft size={16} />
-          Back
-        </Link>
-
-        <div style={{ width: "1px", height: "20px", backgroundColor: theme.orange100 }} />
-
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: "4px" }}>
-          <button
-            onClick={() => setActiveTab("color")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "7px",
-              padding: "8px 18px",
-              borderRadius: "9999px",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: 700,
-              fontFamily: "var(--font-inter), sans-serif",
-              transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-              backgroundColor: activeTab === "color" ? theme.orange600 : "transparent",
-              color: activeTab === "color" ? theme.white : theme.inkSoft,
-            }}
-          >
-            <Palette size={15} strokeWidth={2} />
-            Colour Theory Lab
-          </button>
-          <button
-            onClick={() => setActiveTab("typography")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "7px",
-              padding: "8px 18px",
-              borderRadius: "9999px",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: 700,
-              fontFamily: "var(--font-inter), sans-serif",
-              transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-              backgroundColor: activeTab === "typography" ? theme.orange600 : "transparent",
-              color: activeTab === "typography" ? theme.white : theme.inkSoft,
-            }}
-          >
-            <Type size={15} strokeWidth={2} />
-            Typography Lab
-          </button>
-          <button
-            onClick={() => setActiveTab("shape")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "7px",
-              padding: "8px 18px",
-              borderRadius: "9999px",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: 700,
-              fontFamily: "var(--font-inter), sans-serif",
-              transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-              backgroundColor: activeTab === "shape" ? theme.orange600 : "transparent",
-              color: activeTab === "shape" ? theme.white : theme.inkSoft,
-            }}
-          >
-            <Shapes size={15} strokeWidth={2} />
-            Shape Lab
-          </button>
-          <button
-            onClick={() => setActiveTab("layout")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "7px",
-              padding: "8px 18px",
-              borderRadius: "9999px",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: 700,
-              fontFamily: "var(--font-inter), sans-serif",
-              transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-              backgroundColor: activeTab === "layout" ? theme.orange600 : "transparent",
-              color: activeTab === "layout" ? theme.white : theme.inkSoft,
-            }}
-          >
-            <LayoutGrid size={15} strokeWidth={2} />
-            Layout Lab
-          </button>
+    <div className="tool-card-ui">
+      <div className="tool-card-header">
+        <div className="tool-icon-wrapper">
+          {tool.icon}
         </div>
+        <h3>{tool.title}</h3>
       </div>
 
-      {/* Tab Content */}
-      <div style={{ minHeight: "calc(100vh - 60px)" }}>
-        {activeTab === "color" && <ColorLab />}
-        {activeTab === "typography" && <TypographyLab />}
-        {activeTab === "shape" && <ShapeLab />}
-        {activeTab === "layout" && <LayoutLab />}
-      </div>
+      <p className="tool-description">{tool.description}</p>
+
+      <Link href={tool.href} className="tool-btn">
+        Open Tool
+      </Link>
     </div>
   );
 }
 
-export default function ToolsPage() {
+export default function ToolsHubPage() {
   return (
-    <React.Suspense fallback={
-      <div style={{ minHeight: "100vh", backgroundColor: theme.cream, display: "flex", alignItems: "center", justifyContent: "center", color: theme.inkSoft }}>
-        Loading...
-      </div>
-    }>
-      <ToolsContent />
-    </React.Suspense>
+    <div className="tools-page">
+      <Navbar />
+      
+      <header className="tools-hero">
+        <h1><span>Pro Tools.</span> No Cost.</h1>
+        <p>
+          Free, professional-grade utilities built by PM Graphics to speed up your creative workflow and test drive our design processes.
+        </p>
+      </header>
+
+      <main style={{ maxWidth: "1280px", margin: "0 auto", padding: "0 24px 80px" }}>
+        
+        <section className="tools-section">
+          <div className="section-header">
+            <span className="dot"></span>
+            <h2>Audio Tools</h2>
+          </div>
+          <div className="tools-grid">
+            {audioTools.map(tool => (
+              <ToolCard key={tool.title} tool={tool} />
+            ))}
+          </div>
+        </section>
+
+        <section className="tools-section">
+          <div className="section-header">
+            <span className="dot"></span>
+            <h2>Design Tools</h2>
+          </div>
+          <div className="tools-grid">
+            {designTools.map(tool => (
+              <ToolCard key={tool.title} tool={tool} />
+            ))}
+          </div>
+        </section>
+
+        <div style={{ marginTop: "60px", display: "flex", justifyContent: "center" }}>
+          <WhatsAppCTA toolName="PM Graphics Tools" phoneNumber="919101811613" />
+        </div>
+
+      </main>
+    </div>
   );
 }

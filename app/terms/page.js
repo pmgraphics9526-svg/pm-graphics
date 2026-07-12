@@ -16,7 +16,7 @@ export default function TermsOfService() {
         <h1 style={{ fontFamily: "var(--font-space-grotesk), sans-serif", fontSize: "clamp(2rem, 5vw, 3rem)", fontWeight: "800", textTransform: "uppercase", letterSpacing: "-0.03em", marginBottom: "16px" }}>
           Terms of Service
         </h1>
-        <p style={{ color: "#888888", marginBottom: "48px", fontSize: "14px" }}>Last updated: June 2026</p>
+        <p style={{ color: "#888888", marginBottom: "48px", fontSize: "14px" }}>Last updated: July 2026</p>
 
         {[
           {
@@ -38,6 +38,22 @@ export default function TermsOfService() {
           {
             title: "Cancellations",
             body: "If a project is cancelled by the client after work has begun, the deposit is non-refundable. PM Graphics reserves the right to cancel a project and refund the deposit if unforeseen circumstances prevent delivery.",
+          },
+          {
+            title: "Free Tools",
+            body: "The free tools available on this website (including audio and design tools) are provided \"as is\" and \"as available\" without warranties of any kind, express or implied. We do not guarantee that the tools will be error-free, uninterrupted, or fit for any particular purpose. All processing happens locally in your browser; we do not receive, store, or review your files.",
+          },
+          {
+            title: "Your Content & Responsibility",
+            body: "You are solely responsible for any files, audio, images, or other content you process using our tools. You must own the rights to, or have permission to use, any content you process — including copyrighted music and media. PM Graphics has no access to your content and accepts no responsibility for how you use the tools or their output.",
+          },
+          {
+            title: "Prohibited Use",
+            body: "You may not use this website or its tools for any unlawful purpose, including infringing intellectual property rights, creating misleading or harmful content, or attempting to disrupt, overload, or gain unauthorized access to the website or its services. We reserve the right to restrict access in case of misuse.",
+          },
+          {
+            title: "Limitation of Liability",
+            body: "To the maximum extent permitted by law, PM Graphics shall not be liable for any indirect, incidental, or consequential damages arising from your use of this website, its tools, or our services. Our total liability for any claim shall not exceed the amount paid by you for the specific service in question.",
           },
           {
             title: "Contact",

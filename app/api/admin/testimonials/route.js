@@ -2,6 +2,11 @@ import { isAuthenticated } from "@/lib/auth";
 
 export async function GET(request) {
   try {
+    const user = isAuthenticated(request);
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const baseId = process.env.AIRTABLE_BASE_ID;
     const tableName = process.env.AIRTABLE_TABLE_NAME || "Testimonials";
     const readKey = process.env.AIRTABLE_READ_API_KEY;

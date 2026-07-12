@@ -1,0 +1,164 @@
+/* ── cybercore-background.css ─────────────────────────────────────────────
+   Rising light-beam background effect — orange brand palette (#c98a4b).
+   Written to match the CybercoreBackground JSX structure.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── Keyframes ────────────────────────────────────────────────────────────── */
+
+/* Beams rise from below the viewport floor upward */
+@keyframes beam-rise {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-140vh); }
+}
+
+/* Beams pulse in opacity — peaks in the middle of the travel */
+@keyframes beam-fade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  75%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
+/* Subtle floor grid shimmer */
+@keyframes floor-shimmer {
+  0%   { opacity: 0.55; }
+  50%  { opacity: 0.75; }
+  100% { opacity: 0.55; }
+}
+
+/* ── Scene Container ──────────────────────────────────────────────────────── */
+.scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #15130f;
+  /* Slight 3-D perspective so the floor looks like it recedes */
+  perspective: 800px;
+  perspective-origin: 50% 60%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Floor ────────────────────────────────────────────────────────────────── */
+.floor {
+  position: absolute;
+  bottom: -10%;
+  left: -20%;
+  width: 140%;
+  height: 55%;
+  /* Tilt the floor plane backward */
+  transform: rotateX(62deg);
+  transform-origin: center top;
+
+  /* Grid lines in brand amber — two perpendicular repeating gradients */
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 59px,
+      rgba(201, 138, 75, 0.18) 60px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 59px,
+      rgba(201, 138, 75, 0.18) 60px
+    );
+  background-size: 60px 60px;
+
+  /* Fade to transparent at the horizon (top of the floor element) */
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 85%);
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 85%);
+
+  animation: floor-shimmer 4s ease-in-out infinite;
+}
+
+/* ── Central Glow Column ──────────────────────────────────────────────────── */
+.main-column {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  height: 130%;
+
+  /* Vertical spotlight gradient, warm orange, very low opacity */
+  background: radial-gradient(
+    ellipse 100% 60% at 50% 80%,
+    rgba(201, 138, 75, 0.12) 0%,
+    rgba(201, 138, 75, 0.04) 40%,
+    transparent 70%
+  );
+
+  /* Blur the column so it bleeds softly into the scene */
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+/* ── Light Stream Container ───────────────────────────────────────────────── */
+.light-stream-container {
+  position: absolute;
+  /* Start beams from slightly below the bottom so they enter the frame cleanly */
+  bottom: -5%;
+  left: 0;
+  width: 100%;
+  /* Tall enough that beams fully travel through the hero */
+  height: 140%;
+  overflow: hidden;
+}
+
+/* ── Individual Light Beam ────────────────────────────────────────────────── */
+.light-beam {
+  position: absolute;
+  bottom: 0;
+  /* `left`, `width`, `animationDelay`, `animationDuration` are all set
+     via the inline `style` prop from the React component — no need to
+     repeat them here. We only define the animation names and default
+     gradient. The JS passes TWO comma-separated durations for the two
+     animations below. */
+  animation-name: beam-rise, beam-fade;
+  animation-timing-function: linear, ease-in-out;
+  animation-iteration-count: infinite, infinite;
+  /* Height: tall enough that a beam fully exits the top before resetting */
+  height: 30vh;
+  border-radius: 2px;
+
+  /* Default gradient — overridden per type below */
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    rgba(201, 138, 75, 0.7) 40%,
+    rgba(201, 138, 75, 0.9) 70%,
+    rgba(201, 138, 75, 0.3) 100%
+  );
+}
+
+/* ── Primary Beams (85% of beams) ─────────────────────────────────────────── */
+.light-beam.primary {
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    rgba(201, 138, 75, 0.5)  30%,
+    rgba(201, 138, 75, 0.85) 60%,
+    rgba(232, 163, 106, 0.4) 100%
+  );
+  /* A subtle box-shadow gives a soft glow aura around the beam */
+  box-shadow: 0 0 6px 1px rgba(201, 138, 75, 0.25);
+}
+
+/* ── Secondary Beams (15% of beams) — warmer, slightly dimmer ─────────────── */
+.light-beam.secondary {
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    rgba(232, 195, 158, 0.3) 30%,
+    rgba(232, 195, 158, 0.65) 60%,
+    rgba(255, 220, 180, 0.25) 100%
+  );
+  box-shadow: 0 0 8px 2px rgba(232, 195, 158, 0.15);
+  /* Slightly longer and thinner visually — width is set via JS inline style */
+  height: 38vh;
+  opacity: 0.75;
+}

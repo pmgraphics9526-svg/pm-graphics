@@ -59,7 +59,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${syne.variable} ${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" className={`${syne.variable} ${inter.variable} ${spaceGrotesk.variable}`} data-scroll-behavior="smooth">
       <head>
         <script
           type="application/ld+json"

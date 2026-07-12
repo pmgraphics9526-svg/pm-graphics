@@ -34,11 +34,18 @@
   --error: #ffb4ab;
   --on-error: #690005;
   --error-container: #93000a;
-  --on-error-container: #ffdad6;
+  --on-error-container: hsl(6, 100%, 92%);
 
   /* Text */
-  --text-primary: #FFFFFF;
+  --text-primary: #f3cece;
   --text-secondary: #888888;
+
+  /* Typography Scale */
+  --text-hero: clamp(2.5rem, 5vw, 4rem);
+  --text-h2: clamp(1.8rem, 3.5vw, 2.5rem);
+  --text-h3: clamp(1.2rem, 2vw, 1.5rem);
+  --text-body: clamp(1rem, 1.5vw, 1.125rem);
+  --text-small: clamp(0.875rem, 1.2vw, 1rem);
 
   /* Glass effects — orange-tinted frosted glass */
   --glass-surface: rgba(26, 26, 26, 0.5);
@@ -192,7 +199,7 @@ body {
 }
 
 @media (max-width: 768px) {
-  .capabilities-heading { white-space: normal; font-size: clamp(1.2rem, 5vw, 2rem); }
+  .capabilities-heading { white-space: normal; font-size: clamp(1.4rem, 6vw, 2rem); }
 }
 
 /* Capabilities Grid */
@@ -1030,14 +1037,34 @@ body {
 
 /* ── Mobile Responsive Refinements (max-width: 768px) ── */
 @media (max-width: 768px) {
-  /* Hero Heading */
+  /* Hero Heading — fluid instead of a fixed size, smaller floor for narrow phones */
   #home h1.font-display {
-    font-size: 2.2rem !important;
+    font-size: clamp(1.9rem, 8vw, 2.4rem) !important;
     line-height: 1.15 !important;
   }
-  
+
+  /* Hero: collapse the old double top-padding (80px section + 140px container
+     used to add up to 220px of empty space above the badge). Single, smaller
+     offset — just enough to clear the fixed navbar. */
+  #home {
+    padding-top: 90px !important;
+  }
+
   #home .container {
-    padding-top: 140px !important;
+    padding-top: 0 !important;
+  }
+
+  /* Tighten the vertical rhythm: badge → heading → paragraph → buttons → stats */
+  .hero-left-col {
+    gap: 18px !important;
+  }
+
+  .hero-heading-block {
+    gap: 10px !important;
+  }
+
+  .hero-stats-box {
+    margin: 14px auto 0 auto !important;
   }
 
   /* Capabilities Section Cards */
@@ -1056,6 +1083,63 @@ body {
   .about-grid div[style*="gridTemplateColumns"] {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
+  }
+
+  /* ── Section heading typography — smaller, fluid minimums on mobile ── */
+  .font-headline-lg,
+  #work h2,
+  #process h2,
+  #pricing h2 {
+    font-size: clamp(1.4rem, 6vw, 2rem) !important;
+  }
+
+  /* ── Navbar overlap fix: give every anchored section room to clear the
+     fixed navbar when jumped to directly (native #hash navigation) ── */
+  #work,
+  #expertise,
+  #process,
+  #about,
+  #pricing,
+  #contact,
+  #testimonials {
+    scroll-margin-top: 80px;
+  }
+
+  /* Testimonials had a stray 200px top margin baked in — far too much on mobile */
+  #testimonials {
+    margin-top: 64px !important;
+  }
+
+  /* ── Hero floating service cards: compact 2-column grid instead of
+     scattered absolute positioning on narrow screens ── */
+  .hero-visual-stage {
+    height: auto !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .hero-photo-stage {
+    position: relative;
+    width: 100% !important;
+    height: 320px !important;
+  }
+
+  .hero-service-cards-grid {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .hero-service-cards-grid .hero-service-card {
+    position: static !important;
+    max-width: none !important;
+    width: 100% !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
   }
 }
 

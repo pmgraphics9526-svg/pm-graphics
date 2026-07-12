@@ -1,0 +1,528 @@
+/* ── noise-reduce.css ─────────────────────────────────────────────────────
+   Brand palette: dark warm background (#15130f) + orange accent (#c98a4b)
+   Matches Music Mixer and Audio Trim — same design family.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── Page Shell ───────────────────────────────────────────────────────────── */
+.noise-reduce-page {
+  min-height: 100vh;
+  background: #15130f;
+  color: #efe7db;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* ── Hero — full-bleed, 1920×1080-scale ─────────────────────────────────────────── */
+.noise-reduce-hero {
+  position: relative;
+  width: 100%;
+  min-height: 540px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Override the boxed border-radius from audio-hero-bg */
+  border-radius: 0 !important;
+  /* Plain warm dark gradient — no background photo */
+  background-image: linear-gradient(160deg, #1a1610 0%, #15130f 50%, #1c160a 100%);
+  overflow: hidden;
+  padding: 72px 24px 60px;
+}
+
+/* Radial amber glow centred behind headline */
+.noise-reduce-hero::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(ellipse at center, rgba(201, 138, 75, 0.14) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.noise-reduce-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Centred text content block inside the hero */
+.noise-reduce-hero .tool-hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 860px;
+  width: 100%;
+}
+
+/* ── Hero Badge ───────────────────────────────────────────────────────────── */
+.nr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(201, 138, 75, 0.08);
+  border: 1px solid rgba(201, 138, 75, 0.3);
+  padding: 6px 16px;
+  border-radius: 999px;
+  color: #c98a4b;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+}
+
+/* ── Hero Headline ─────────────────────────────────────────────────────────── */
+.noise-reduce-hero h1 {
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(2.8rem, 6vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1.08;
+  margin: 0 0 24px;
+  letter-spacing: -0.04em;
+  color: #efe7db;
+}
+
+.noise-reduce-hero h1 .nr-accent {
+  color: #c98a4b;
+}
+
+/* ── Desktop: keep the headline on one line, widen the wave animation ──── */
+@media (min-width: 1024px) {
+  .noise-reduce-hero .tool-hero-content {
+    max-width: 1100px;
+  }
+
+  .noise-reduce-hero h1 {
+    white-space: nowrap;
+  }
+
+  /* Break the wave out of the centered content column so it spans the
+     full browser width, not just the width of the heading block. */
+  .at-wave-stack {
+    max-width: none;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+}
+
+/* ── Hero Subtext ─────────────────────────────────────────────────────────── */
+.noise-reduce-hero p {
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  color: #a99f8f;
+  line-height: 1.65;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+/* ── Main Container ───────────────────────────────────────────────────────── */
+.noise-reduce-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 32px 80px;
+}
+
+/* ── Upload Actions Row ───────────────────────────────────────────────────── */
+.noise-reduce-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 44px;
+  flex-wrap: wrap;
+}
+
+/* Primary CTA — brand orange, pill-shaped */
+.btn-nr-primary {
+  background: #c98a4b;
+  color: #15130f;
+  border: none;
+  border-radius: 999px;
+  padding: 15px 32px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 18px rgba(201, 138, 75, 0.25);
+}
+
+.btn-nr-primary:hover:not(:disabled) {
+  background: #db9c58;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(201, 138, 75, 0.4);
+}
+
+.btn-nr-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-nr-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Secondary ghost button */
+.btn-nr-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  color: #efe7db;
+  border: 1px solid #3a3529;
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-nr-secondary:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: #c98a4b;
+  color: #c98a4b;
+}
+
+/* ── Feature Strip ────────────────────────────────────────────────────────── */
+.nr-features-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #191712;
+  border: 1px solid #2a261f;
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-top: 56px;
+  gap: 24px;
+}
+
+.nr-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.nr-feature-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(201, 138, 75, 0.08);
+  border: 1px solid rgba(201, 138, 75, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c98a4b;
+  flex-shrink: 0;
+}
+
+.nr-feature-text h4 {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c98a4b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 5px;
+}
+
+.nr-feature-text p {
+  font-size: 13px;
+  color: #79715f;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* ── How It Works ─────────────────────────────────────────────────────────── */
+.nr-how-it-works {
+  margin-top: 80px;
+  text-align: center;
+}
+
+.nr-how-it-works h2 {
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #efe7db;
+  letter-spacing: -0.02em;
+}
+
+.nr-how-divider {
+  width: 40px;
+  height: 3px;
+  background: #c98a4b;
+  border-radius: 2px;
+  margin: 0 auto 48px;
+}
+
+.nr-steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.nr-step-item {
+  background: #191712;
+  border: 1px solid #2a261f;
+  border-radius: 14px;
+  padding: 28px 24px;
+  text-align: left;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  transition: border-color 0.2s ease;
+}
+
+.nr-step-item:hover {
+  border-color: rgba(201, 138, 75, 0.4);
+}
+
+.nr-step-number {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c98a4b;
+  background: rgba(201, 138, 75, 0.08);
+  border: 1px solid rgba(201, 138, 75, 0.2);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.nr-step-text h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #efe7db;
+  margin: 0 0 6px;
+}
+
+.nr-step-text p {
+  font-size: 13px;
+  color: #79715f;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Post-Upload: Comparison Container ────────────────────────────────────── */
+.noise-comparison-container {
+  background: #1d1a15;
+  border: 1px solid #322d24;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 40px;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.noise-comparison-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2a261f;
+}
+
+.noise-comparison-header h3 {
+  font-family: "Inter", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: #efe7db;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.noise-comparison-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.noise-comparison-header span {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: #a99f8f;
+  background: #111009;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #2a261f;
+}
+
+.noise-comparison-remove {
+  background: none;
+  border: none;
+  color: #79715f;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.noise-comparison-remove:hover {
+  color: #e8c39e;
+}
+
+.noise-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.audio-player-wrapper {
+  padding: 0;
+}
+
+.audio-player-wrapper h3 {
+  margin: 0 0 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #c98a4b;
+}
+
+.audio-player-wrapper audio {
+  width: 100%;
+  height: 32px;
+  /* Dark-mode audio player styling */
+  filter: invert(0.85) hue-rotate(180deg);
+  border-radius: 4px;
+}
+
+.audio-player-placeholder {
+  color: #4a453c;
+  font-size: 12px;
+  font-family: "JetBrains Mono", monospace;
+  margin: 8px 0 0;
+  letter-spacing: 0.02em;
+}
+
+/* ── Post-Upload Action Bar ───────────────────────────────────────────────── */
+.nr-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid #2a261f;
+  flex-wrap: wrap;
+}
+
+/* Processing progress bar */
+.nr-progress-wrap {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.nr-progress-bar-track {
+  height: 4px;
+  background: #2a261f;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.nr-progress-bar-fill {
+  height: 100%;
+  background: #c98a4b;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.nr-progress-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: #79715f;
+  margin: 8px 0 0;
+}
+
+/* Start Over button */
+.btn-nr-ghost {
+  background: none;
+  color: #79715f;
+  border: 1px solid #2a261f;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-nr-ghost:hover {
+  color: #efe7db;
+  border-color: #4a453c;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .nr-features-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .noise-reduce-hero {
+    min-height: auto;
+    padding: 76px 20px 40px;
+  }
+
+  .noise-reduce-hero::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 65%;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(21, 19, 15, 0.1) 20%,
+      rgba(21, 19, 15, 0.35) 40%,
+      rgba(21, 19, 15, 0.65) 60%,
+      rgba(21, 19, 15, 0.9) 80%,
+      #15130f 100%
+    );
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .noise-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nr-steps-row {
+    grid-template-columns: 1fr;
+  }
+
+  .nr-features-row {
+    grid-template-columns: 1fr 1fr;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nr-features-row {
+    grid-template-columns: 1fr;
+  }
+}
