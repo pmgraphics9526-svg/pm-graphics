@@ -6,6 +6,14 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const nextConfig = {
   turbopack: {
     root: __dirname,
+    resolveAlias: {
+      // kissfft-js (Vocal Remover tool) ships an emscripten bundle with an
+      // unreachable Node.js fallback path that references `fs`/`path`.
+      // Turbopack still statically resolves it, so stub both for the
+      // browser build only — no other tool imports Node built-ins.
+      fs: { browser: './lib/empty-shim.js' },
+      path: { browser: './lib/empty-shim.js' },
+    },
   },
   images: {
     // Serve WebP automatically — 60–80% smaller than PNG/JPG at same quality

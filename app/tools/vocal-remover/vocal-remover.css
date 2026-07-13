@@ -1,0 +1,102 @@
+/* ── vocal-remover.css ────────────────────────────────────────────────────
+   Reuses the shared dark warm palette (#15130f + #c98a4b accent) and the
+   noise-reduce/music-mixer class families (nr-*, mixer-*) for layout —
+   this file only adds the few rules specific to this tool.
+   ────────────────────────────────────────────────────────────────────── */
+
+.vocal-remover-cta {
+  margin-top: 48px;
+}
+
+@media (max-width: 768px) {
+  .vocal-remover-cta {
+    margin-top: 32px;
+  }
+}
+
+/* ── Trim container: wider than the noise-reduce comparison card so the
+   waveform + drag handles have room to breathe ──────────────────────── */
+.vr-trim-container {
+  max-width: 760px;
+}
+
+/* Filename lives in SimpleWaveform's own header now — this bar only shows
+   file size, right-aligned where the size badge used to sit. */
+.vr-trim-header {
+  justify-content: flex-end;
+}
+
+.vr-trim-header-size {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: #a99f8f;
+  background: #111009;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #2a261f;
+}
+
+.vr-trim-hint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: #79715f;
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ── Soft warning for long trim selections — a hint, not a blocker ───── */
+.vr-length-warning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 10px auto 0;
+  padding: 8px 14px;
+  max-width: 480px;
+  background: rgba(201, 138, 75, 0.08);
+  border: 1px solid rgba(201, 138, 75, 0.25);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #e0ac6f;
+  font-family: "Inter", system-ui, sans-serif;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.vr-length-warning svg {
+  flex-shrink: 0;
+  color: #c98a4b;
+}
+
+/* ── Processing state: spinner + reassurance message ─────────────────── */
+.vr-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.vr-progress-bar-track {
+  flex: 1;
+  margin-top: 0;
+}
+
+.vr-spinner {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(201, 138, 75, 0.2);
+  border-top-color: #c98a4b;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.vr-processing-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #a99f8f;
+  font-family: "Inter", system-ui, sans-serif;
+  line-height: 1.5;
+}

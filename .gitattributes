@@ -1,0 +1,2 @@
+public/audio-models/*.onnx filter=lfs diff=lfs merge=lfs -text
+public/ort/*.wasm filter=lfs diff=lfs merge=lfs -text

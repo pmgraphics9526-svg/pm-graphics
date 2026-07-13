@@ -13,12 +13,20 @@ interface SimpleWaveformProps {
   file: File;
   onSelectionChange: (selection: TrackSelection) => void;
   onRemove: () => void;
+  /** Default the region to the full track instead of the first 30s, and
+   *  show a "Use Full Song" reset button. Off by default so existing
+   *  callers (Audio Trim) keep their current behavior unchanged. */
+  fullLengthByDefault?: boolean;
+  /** Fires once the track's total duration is known. */
+  onDurationReady?: (duration: number) => void;
 }
 
 export default function SimpleWaveform({
   file,
   onSelectionChange,
   onRemove,
+  fullLengthByDefault = false,
+  onDurationReady,
 }: SimpleWaveformProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -30,6 +38,12 @@ export default function SimpleWaveform({
   const [selection, setSelection] = useState<TrackSelection | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [zoom, setZoom] = useState(10); // minPxPerSec
+  // Mirrors durationRef.current for use in JSX — reading a ref directly
+  // during render is disallowed (react-hooks/refs), so render reads go
+  // through this state instead. durationRef itself stays around for use
+  // in event handlers (commitStart/commitEnd/etc.), where reading a ref
+  // is fine.
+  const [durationState, setDurationState] = useState(0);
 
   const [startInput, setStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
@@ -76,9 +90,11 @@ export default function SimpleWaveform({
 
       const duration = ws.getDuration();
       durationRef.current = duration;
+      setDurationState(duration);
+      onDurationReady?.(duration);
 
       const defaultStart = 0;
-      const defaultEnd = Math.min(duration, 30);
+      const defaultEnd = fullLengthByDefault ? duration : Math.min(duration, 30);
 
       const region = regions.addRegion({
         start: defaultStart,
@@ -200,7 +216,7 @@ export default function SimpleWaveform({
               className="mixer-track__time-input"
               value={startInput}
               min={0}
-              max={durationRef.current || undefined}
+              max={durationState || undefined}
               step={0.01}
               disabled={!selection}
               onChange={(e) => setStartInput(e.target.value)}
@@ -216,7 +232,7 @@ export default function SimpleWaveform({
               className="mixer-track__time-input"
               value={endInput}
               min={0}
-              max={durationRef.current || undefined}
+              max={durationState || undefined}
               step={0.01}
               disabled={!selection}
               onChange={(e) => setEndInput(e.target.value)}
@@ -226,6 +242,22 @@ export default function SimpleWaveform({
             <span className="mixer-track__time-unit">s</span>
           </label>
         </div>
+
+        {fullLengthByDefault && selection && durationState > 0 && (
+          <button
+            type="button"
+            className="mixer-track__play"
+            onClick={() => {
+              const duration = durationRef.current;
+              const full = { start: 0, end: duration };
+              if (regionRef.current) regionRef.current.setOptions(full);
+              applySelection(full);
+            }}
+            disabled={selection.start === 0 && selection.end === durationState}
+          >
+            Use Full Song
+          </button>
+        )}
 
         {selection && (
           <span className="mixer-track__range">

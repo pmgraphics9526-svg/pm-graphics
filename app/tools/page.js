@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Palette, Type, Shapes, LayoutGrid, Music, Scissors, Sparkles } from "lucide-react";
+import { Palette, Type, Shapes, LayoutGrid, Music, Scissors, Sparkles, Mic2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import WhatsAppCTA from "@/components/music-mixer/WhatsAppCTA";
 import "./tools.css"; // Import new stylesheet
@@ -53,6 +53,12 @@ const audioTools = [
     description: "Cut and blend up to 4 songs into one seamless track with automatic crossfades and beat snapping.",
     icon: <Music size={20} />,
     href: "/tools/music-mixer"
+  },
+  {
+    title: "Vocal Remover",
+    description: "Upload a song and let an on-device AI model strip the vocals, leaving a clean instrumental track.",
+    icon: <Mic2 size={20} />,
+    href: "/tools/vocal-remover"
   }
 ];
 
