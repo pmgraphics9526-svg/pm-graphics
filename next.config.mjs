@@ -37,6 +37,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.airtableusercontent.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'storage.googleapis.com',
+      },
     ],
   },
   async headers() {
@@ -46,11 +50,11 @@ const nextConfig = {
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''} https://va.vercel-scripts.com https://www.google.com https://www.gstatic.com blob:;
       style-src 'self' 'unsafe-inline';
-      img-src 'self' data: blob: https://dl.airtable.com https://*.airtableusercontent.com;
+      img-src 'self' data: blob: https://dl.airtable.com https://*.airtableusercontent.com https://storage.googleapis.com;
       font-src 'self' data:;
       connect-src 'self' https://vitals.vercel-analytics.com https://www.google.com;
       frame-src 'self' https://www.google.com;
-      media-src 'self' blob: data: https://dl.airtable.com https://*.airtableusercontent.com;
+      media-src 'self' blob: data: https://dl.airtable.com https://*.airtableusercontent.com https://storage.googleapis.com;
       worker-src 'self' blob:;
       object-src 'none';
       base-uri 'self';

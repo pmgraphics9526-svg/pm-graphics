@@ -1,4 +1,18 @@
 import { isAuthenticated } from "@/lib/auth";
+import { bucket } from "@/lib/firebase-admin";
+
+async function deleteStorageFileIfOwned(url) {
+  if (!url || !url.includes("storage.googleapis.com")) return;
+  try {
+    const marker = `storage.googleapis.com/${bucket.name}/`;
+    const idx = url.indexOf(marker);
+    if (idx === -1) return;
+    const path = decodeURIComponent(url.slice(idx + marker.length));
+    await bucket.file(path).delete({ ignoreNotFound: true });
+  } catch (err) {
+    console.error("Storage cleanup failed (non-fatal):", err);
+  }
+}
 
 export async function GET(request) {
   try {
@@ -198,6 +212,19 @@ export async function DELETE(request) {
       return Response.json({ error: "ID is required" }, { status: 400 });
     }
 
+    let imageUrlToClean = null;
+    try {
+      const getRes = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${id}`, {
+        headers: { Authorization: `Bearer ${writeKey}` },
+      });
+      if (getRes.ok) {
+        const record = await getRes.json();
+        imageUrlToClean = record.fields?.ImagePathList || record.fields?.Images?.[0]?.url || null;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch record before delete (continuing):", e);
+    }
+
     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${id}`, {
       method: "DELETE",
       headers: {
@@ -210,6 +237,8 @@ export async function DELETE(request) {
       console.error("Airtable DELETE error:", errText);
       return Response.json({ error: "Failed to delete from Airtable" }, { status: 502 });
     }
+
+    await deleteStorageFileIfOwned(imageUrlToClean);
 
     return Response.json({ success: true });
   } catch (err) {
@@ -238,6 +267,21 @@ export async function PUT(request) {
 
     if (!id || !title || !category) {
       return Response.json({ error: "ID, Title, and Category are required" }, { status: 400 });
+    }
+
+    let oldImageUrl = null;
+    if (imageUrl) {
+      try {
+        const getRes = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${id}`, {
+          headers: { Authorization: `Bearer ${writeKey}` },
+        });
+        if (getRes.ok) {
+          const record = await getRes.json();
+          oldImageUrl = record.fields?.ImagePathList || record.fields?.Images?.[0]?.url || null;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch record before update (continuing):", e);
+      }
     }
 
     const scopeStr = Array.isArray(scope) ? scope.join(", ") : scope || "";
@@ -274,6 +318,10 @@ export async function PUT(request) {
       const errText = await res.text();
       console.error("Airtable PATCH portfolio error:", errText);
       return Response.json({ error: "Failed to update project in Airtable" }, { status: 502 });
+    }
+
+    if (imageUrl && oldImageUrl && oldImageUrl !== imageUrl) {
+      await deleteStorageFileIfOwned(oldImageUrl);
     }
 
     return Response.json({ success: true });
