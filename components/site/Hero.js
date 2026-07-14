@@ -245,15 +245,16 @@ export default function Hero() {
             />
 
             {/* Flipped Founder Image Wrapper */}
-            <div 
-              style={{ 
-                transform: "scaleX(-1)", 
-                width: "100%", 
-                height: "100%", 
-                display: "flex", 
-                justifyContent: "center", 
+            <div
+              style={{
+                position: "relative",
+                transform: "scaleX(-1)",
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                justifyContent: "center",
                 alignItems: "center",
-                zIndex: 2 
+                zIndex: 2
               }}
             >
               <Image
