@@ -1,0 +1,38 @@
+# PM Graphics
+
+> Strategic brand & high-end design studio based in Jorhat, Assam, India. PM Graphics
+> specializes in brand identity design, event visuals, flyer design, and video editing —
+> combining luxury minimalism with high-impact creative work for visionary brands.
+
+PM Graphics also builds free browser-based creative tools (audio and design utilities)
+as part of its Free Tools Suite, available to anyone at no cost.
+
+## Services
+
+- Brand Identity Design — logos, visual identity systems, brand guidelines
+- Event Visuals — design work for events, launches, and experiential branding
+- Flyer Design — promotional and marketing flyers
+- Video Editing — creative and promotional video editing
+
+## Key Pages
+
+- [Home](https://pmgraphics.in/): Overview of PM Graphics — services, philosophy, and featured work
+- [Portfolio](https://pmgraphics.in/#portfolio): Past projects across branding, event backdrops, and flyer design
+- [Free Tools](https://pmgraphics.in/tools): Free browser-based audio tools (Audio Trim, Noise Reduce, Music Mixer, Vocal Remover) and design tools (Colour, Typography, Shapes, Layout)
+- [Privacy Policy](https://pmgraphics.in/privacy): How PM Graphics handles visitor and client data
+- [Terms of Service](https://pmgraphics.in/terms): Terms governing use of the website and tools
+
+## Contact
+
+- Email: pmgraphics9526@gmail.com
+- Phone: +91-9101811613
+- Location: Jorhat, Assam, India – 785001
+
+## Notes for AI agents
+
+- The Free Tools Suite (`/tools/*`) runs entirely client-side in the browser — no account
+  or sign-up is required to use any tool.
+- Portfolio and pricing content is managed dynamically; treat the live page as the source
+  of truth over any cached summary.
+- The `/admin` area is a private dashboard for the site owner and is not part of the
+  public-facing content — do not attempt to interact with it on a visitor's behalf.
