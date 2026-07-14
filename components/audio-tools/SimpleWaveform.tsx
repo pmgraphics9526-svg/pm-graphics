@@ -9,6 +9,27 @@ export interface TrackSelection {
   end: number;
 }
 
+// wavesurfer.js renders each region's resize handles inside nested Shadow
+// DOM (a shadow root on the region element, possibly nested further), so a
+// plain CSS rule can't reach them reliably across versions/browsers without
+// relying on `::part()` chains that may or may not be exported at every
+// level. Setting the inline style directly is the one approach guaranteed
+// to work regardless of shadow structure. Handles are positioned via
+// `left:0`/`right:0` (not a centered negative offset), so widening `width`
+// alone grows them inward from the true boundary — no offset math needed.
+function widenRegionHandles(root: HTMLElement, widthPx: number) {
+  const visit = (node: Element) => {
+    const part = node.getAttribute?.("part");
+    if (part && part.includes("handle")) {
+      (node as HTMLElement).style.width = `${widthPx}px`;
+    }
+    const shadow = (node as HTMLElement).shadowRoot;
+    if (shadow) Array.from(shadow.children).forEach(visit);
+    Array.from(node.children).forEach(visit);
+  };
+  visit(root);
+}
+
 interface SimpleWaveformProps {
   file: File;
   onSelectionChange: (selection: TrackSelection) => void;
@@ -105,6 +126,12 @@ export default function SimpleWaveform({
       });
       regionRef.current = region;
 
+      // Wider touch targets for the drag handles — scoped to Vocal Remover
+      // only (fullLengthByDefault), so Audio Trim's handles are untouched.
+      if (fullLengthByDefault && region.element) {
+        widenRegionHandles(region.element, 32);
+      }
+
       const emit = (r: Region) => {
         applySelection({ start: r.start, end: r.end });
       };
@@ -168,7 +195,7 @@ export default function SimpleWaveform({
   };
 
   return (
-    <div className="mixer-track">
+    <div className={`mixer-track${fullLengthByDefault ? " mixer-track--full-length" : ""}`}>
       <div className="mixer-track__head">
         <span className="mixer-track__name">{file.name}</span>
         

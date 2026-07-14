@@ -100,3 +100,24 @@
   font-family: "Inter", system-ui, sans-serif;
   line-height: 1.5;
 }
+
+/* ── Mobile trim-panel fixes (scoped to .mixer-track--full-length, the
+   modifier SimpleWaveform only adds for Vocal Remover — Audio Trim never
+   gets this class, so its layout is untouched) ──────────────────────── */
+@media (max-width: 768px) {
+  /* music-mixer.css forces .mixer-track__footer to a single non-wrapping
+     row on mobile; that fits Audio Trim's Preview + Start/End + range row,
+     but overflows here once the extra "Use Full Song" button is added.
+     Letting it wrap keeps every control on-screen instead of clipped. */
+  .mixer-track--full-length .mixer-track__footer {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    row-gap: 10px !important;
+  }
+
+  /* Bigger tap target for the Start/End fields — 24px tall was under any
+     reasonable touch-target minimum. */
+  .mixer-track--full-length .mixer-track__time-input {
+    height: 36px !important;
+  }
+}
