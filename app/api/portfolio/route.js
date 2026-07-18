@@ -2,7 +2,21 @@ export const revalidate = 300;
 
 import { projects as fallbackProjects } from "@/components/projectsData";
 
+// In-memory cache — Next.js's fetch/ISR data cache only applies to
+// production builds, not `next dev`, so without this every request
+// (dev or a cold-cache prod hit) pays the full Airtable round-trip
+// (commonly several seconds, sometimes 20s+ on a slow connection).
+// Portfolio data rarely changes, so a 5-minute in-process cache is
+// safe and makes repeat requests resolve in milliseconds everywhere.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let cache = { data: null, timestamp: 0 };
+
 export async function GET() {
+  const now = Date.now();
+  if (cache.data && now - cache.timestamp < CACHE_TTL_MS) {
+    return Response.json(cache.data);
+  }
+
   try {
     const baseId = process.env.AIRTABLE_BASE_ID;
     const readKey = process.env.AIRTABLE_READ_API_KEY;
@@ -34,7 +48,8 @@ export async function GET() {
       if (!res.ok) {
         const errText = await res.text();
         console.error("[GET /api/portfolio] Airtable error:", errText);
-        // If Airtable is failing or misconfigured, fallback to local projects
+        // Serve stale cache over a hard fallback if we have one
+        if (cache.data) return Response.json(cache.data);
         return Response.json(fallbackProjects);
       }
 
@@ -53,6 +68,7 @@ export async function GET() {
 
     if (validRecords.length === 0) {
       console.warn("[GET /api/portfolio] Airtable table has no valid records. Falling back to local data.");
+      if (cache.data) return Response.json(cache.data);
       return Response.json(fallbackProjects);
     }
 
@@ -131,9 +147,11 @@ export async function GET() {
     // Sort projects by ID descending (newest first)
     mappedProjects.sort((a, b) => b.id - a.id);
 
+    cache = { data: mappedProjects, timestamp: now };
     return Response.json(mappedProjects);
   } catch (err) {
     console.error("[GET /api/portfolio] Unexpected error:", err);
+    if (cache.data) return Response.json(cache.data);
     return Response.json(fallbackProjects);
   }
 }

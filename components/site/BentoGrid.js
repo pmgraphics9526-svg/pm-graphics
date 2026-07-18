@@ -347,7 +347,7 @@ export default function BentoGrid({ onSelectProject }) {
                       alt={project.category}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      quality={80}
+                      quality={85}
                       style={{
                         objectFit: "contain",
                         transition: "transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)"
@@ -528,7 +528,7 @@ export default function BentoGrid({ onSelectProject }) {
                         alt={project.title}
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        quality={80}
+                        quality={85}
                         style={{
                           objectFit: "contain",
                           transition: "transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)"

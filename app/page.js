@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import BentoGrid from "@/components/BentoGrid";
@@ -18,6 +18,7 @@ export default function Home() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [currentYear, setCurrentYear] = useState(2026);
   const [settings, setSettings] = useState(null);
+  const mainRef = useRef(null);
 
   // Fetch Site Settings from API route
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function Home() {
   // Staggered scroll reveal animation observer for every section
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!mainRef.current) return;
 
     const observerOptions = {
       root: null,
@@ -67,6 +69,10 @@ export default function Home() {
     }, observerOptions);
 
     const configureSection = (section) => {
+      // Safety net: if our container has already been detached (e.g. a
+      // client-side route change is mid-flight), never act on it — even
+      // if this fires in the gap before this effect's own cleanup runs.
+      if (!mainRef.current || !mainRef.current.isConnected) return;
       if (
         !section ||
         section.nodeType !== Node.ELEMENT_NODE ||
@@ -119,8 +125,10 @@ export default function Home() {
       }
     };
 
-    // Scan initial sections
-    scanSections(document.body);
+    // Scan initial sections — scoped to the homepage's own <main>, not
+    // document.body, so client-side navigation to another page's DOM
+    // (e.g. Resources -> /tools) is never seen by this observer.
+    scanSections(mainRef.current);
 
     // MutationObserver to configure dynamically loaded sections or content (e.g., portfolio cards inside tabs)
     const mutationObserver = new MutationObserver((mutations) => {
@@ -138,7 +146,7 @@ export default function Home() {
       });
     });
 
-    mutationObserver.observe(document.body, {
+    mutationObserver.observe(mainRef.current, {
       childList: true,
       subtree: true,
     });
@@ -287,7 +295,7 @@ export default function Home() {
       {/* Floating Island Navigation */}
       <Navbar />
 
-      <main style={{ minHeight: "100vh", backgroundColor: "transparent", color: "var(--on-surface)" }}>
+      <main ref={mainRef} style={{ minHeight: "100vh", backgroundColor: "transparent", color: "var(--on-surface)" }}>
         {/* Hero Section with HTML5 Canvas Embers */}
         <Hero />
 

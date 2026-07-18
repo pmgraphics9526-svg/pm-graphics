@@ -51,7 +51,21 @@ const preWrittenReviews = [
   },
 ];
 
+// In-memory cache — Next.js's fetch/ISR data cache only applies to
+// production builds, not `next dev`, so without this every request
+// (dev or a cold-cache prod hit) pays the full Airtable round-trip
+// (commonly several seconds, sometimes 20s+ on a slow connection).
+// Testimonials rarely change, so a 5-minute in-process cache is safe
+// and makes repeat requests resolve in milliseconds everywhere.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let cache = { data: null, timestamp: 0 };
+
 export async function GET() {
+  const now = Date.now();
+  if (cache.data && now - cache.timestamp < CACHE_TTL_MS) {
+    return Response.json({ records: cache.data });
+  }
+
   try {
     const baseId = process.env.AIRTABLE_BASE_ID;
     const tableName = process.env.AIRTABLE_TABLE_NAME || "Testimonials";
@@ -73,6 +87,8 @@ export async function GET() {
     if (!res.ok) {
       const errText = await res.text();
       console.error("[GET /api/testimonials] Airtable error:", errText);
+      // Serve stale cache over a hard error if we have one
+      if (cache.data) return Response.json({ records: cache.data });
       return Response.json({ error: "Failed to fetch testimonials from Airtable." }, { status: 502 });
     }
 
@@ -85,9 +101,12 @@ export async function GET() {
       rating: Number(rec.fields.Rating) || 5,
     }));
 
+    cache = { data: reviews, timestamp: now };
     return Response.json({ records: reviews });
   } catch (err) {
     console.error("[GET /api/testimonials] Unexpected error:", err);
+    // Serve stale cache over a hard error if we have one
+    if (cache.data) return Response.json({ records: cache.data });
     return Response.json({ error: "Server error." }, { status: 500 });
   }
 }
