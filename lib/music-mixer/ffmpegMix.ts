@@ -108,9 +108,17 @@ async function getFFmpeg(
     let wasmLoaded = 0;
     const reportCombined = () => {
       if (!onLoadProgress) return;
-      onLoadProgress(Math.min(1, (jsLoaded + wasmLoaded) / grandTotal));
+      // Capped at 0.98, not 1 — these are OUR download fetches finishing,
+      // not ffmpeg.load() itself. ffmpeg.load() still has to instantiate/
+      // compile the ~32MB WASM module after this, which is not
+      // instantaneous. Reporting 100% here (as an earlier version did)
+      // made the UI flip to "Mixing... 0%" while still genuinely inside
+      // the load step — a real bug: it looked like mixing was hung at 0%
+      // when it was actually still compiling the WASM module.
+      onLoadProgress(Math.min(0.98, (jsLoaded + wasmLoaded) / grandTotal));
     };
 
+    console.log("[ffmpeg] Phase: downloading core files...");
     await Promise.all([
       fetchWithProgress(`${baseURL}/ffmpeg-core.js`, (loaded) => {
         jsLoaded = loaded;
@@ -121,13 +129,17 @@ async function getFFmpeg(
         reportCombined();
       }),
     ]);
+    console.log("[ffmpeg] Phase: core files downloaded, instantiating WASM module...");
 
     // True fallback only — normal loads finish via the fetches above and
     // never hit this. This guards against a genuinely stuck/dead
     // connection (e.g. WiFi drops mid-download) rather than being the
     // primary UX, which is now the real progress percentage above.
+    // Distinct message from the exec-phase timeout below so a failure
+    // here is never confused with a hang during the actual mix/trim/
+    // noise-reduce operation.
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("FFmpeg loading timed out after 4 minutes")), 240000)
+      setTimeout(() => reject(new Error("Loading audio engine timed out after 4 minutes")), 240000)
     );
 
     // Note: The UMD build resolves its worker chunk '814.ffmpeg.js' relative to the path where ffmpeg.js was loaded.
@@ -138,7 +150,8 @@ async function getFFmpeg(
     });
 
     await Promise.race([loadPromise, timeoutPromise]);
-    console.log("[ffmpeg] Audio engine loaded successfully.");
+    if (onLoadProgress) onLoadProgress(1); // only now is loading truly complete
+    console.log("[ffmpeg] Phase: audio engine loaded successfully, ready to exec.");
   } catch (err) {
     console.error("[ffmpeg] FATAL ERROR: Failed to load ffmpeg core files from self-hosted paths.", err);
     throw err;
@@ -146,6 +159,31 @@ async function getFFmpeg(
 
   ffmpegInstance = ffmpeg;
   return ffmpeg;
+}
+
+// Runs ffmpeg.exec() with its own timeout and explicit before/after logging,
+// completely separate from the load-phase timeout in getFFmpeg(). Before
+// this, a hang here had NO timeout at all (the load timeoutPromise only
+// wraps ffmpeg.load(), which has already resolved by the time exec() runs)
+// — it would hang forever with no error, or on retry surface the load
+// timeout's message even though the actual stall was here, which is
+// exactly the mislabeling this fixes.
+async function execWithTimeout(
+  ffmpeg: any,
+  args: string[],
+  label: string,
+  timeoutMs = 180000
+): Promise<number> {
+  console.log(`[ffmpeg] exec start (${label}): ffmpeg ${args.join(" ")}`);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`)),
+      timeoutMs
+    )
+  );
+  const result = await Promise.race([ffmpeg.exec(args), timeoutPromise]);
+  console.log(`[ffmpeg] exec finished (${label}), exit code:`, result);
+  return result as number;
 }
 
 /**
@@ -170,12 +208,16 @@ export async function mixTracks({
   // stale listeners from stacking up on repeated calls (memory leak fix).
   let progressListener: ((e: any) => void) | null = null;
   if (onProgress) {
-    progressListener = ({ progress }: any) => onProgress(Math.min(progress, 1));
+    progressListener = ({ progress, time }: any) => {
+      console.log(`[ffmpeg] mix progress: ${(progress * 100).toFixed(1)}% (time=${time})`);
+      onProgress(Math.min(progress, 1));
+    };
     ffmpeg.on("progress", progressListener);
   }
 
   try {
     // Write each source file into ffmpeg's virtual FS.
+    console.log(`[ffmpeg] writing ${clips.length} input file(s) to virtual FS...`);
     const inputNames: string[] = [];
     for (let i = 0; i < clips.length; i++) {
       const name = `in${i}.input`;
@@ -183,6 +225,7 @@ export async function mixTracks({
       const arrayBuffer = await clips[i].file.arrayBuffer();
       await ffmpeg.writeFile(name, new Uint8Array(arrayBuffer));
       inputNames.push(name);
+      console.log(`[ffmpeg] wrote ${name} (${arrayBuffer.byteLength} bytes)`);
     }
 
     // Build filter_complex: trim each clip to its selection, then chain
@@ -221,7 +264,7 @@ export async function mixTracks({
     }
     args.push(outputName);
 
-    await ffmpeg.exec(args);
+    await execWithTimeout(ffmpeg, args, "Mixing");
 
     const data = await ffmpeg.readFile(outputName);
     const mime = outputFormat === "mp3" ? "audio/mpeg" : "audio/wav";
@@ -247,7 +290,10 @@ export async function trimAudio(
 
   let progressListener: ((e: any) => void) | null = null;
   if (onProgress) {
-    progressListener = ({ progress }: any) => onProgress(Math.min(progress, 1));
+    progressListener = ({ progress, time }: any) => {
+      console.log(`[ffmpeg] trim progress: ${(progress * 100).toFixed(1)}% (time=${time})`);
+      onProgress(Math.min(progress, 1));
+    };
     ffmpeg.on("progress", progressListener);
   }
 
@@ -255,6 +301,7 @@ export async function trimAudio(
     const inputName = "input.file";
     const arrayBuffer = await file.arrayBuffer();
     await ffmpeg.writeFile(inputName, new Uint8Array(arrayBuffer));
+    console.log(`[ffmpeg] wrote ${inputName} (${arrayBuffer.byteLength} bytes)`);
 
     const outputName = outputFormat === "mp3" ? "trimmed_output.mp3" : "trimmed_output.wav";
     const dur = Math.max(0, end - start);
@@ -268,7 +315,7 @@ export async function trimAudio(
     }
     args.push(outputName);
 
-    await ffmpeg.exec(args);
+    await execWithTimeout(ffmpeg, args, "Trimming");
 
     const data = await ffmpeg.readFile(outputName);
     const mime = outputFormat === "mp3" ? "audio/mpeg" : "audio/wav";
@@ -293,7 +340,10 @@ export async function reduceNoise(
 
   let progressListener: ((e: any) => void) | null = null;
   if (onProgress) {
-    progressListener = ({ progress }: any) => onProgress(Math.min(progress, 1));
+    progressListener = ({ progress, time }: any) => {
+      console.log(`[ffmpeg] noise-reduce progress: ${(progress * 100).toFixed(1)}% (time=${time})`);
+      onProgress(Math.min(progress, 1));
+    };
     ffmpeg.on("progress", progressListener);
   }
 
@@ -301,6 +351,7 @@ export async function reduceNoise(
     const inputName = "input_noise.file";
     const arrayBuffer = await file.arrayBuffer();
     await ffmpeg.writeFile(inputName, new Uint8Array(arrayBuffer));
+    console.log(`[ffmpeg] wrote ${inputName} (${arrayBuffer.byteLength} bytes)`);
 
     const outputName = outputFormat === "mp3" ? "cleaned_output.mp3" : "cleaned_output.wav";
 
@@ -323,7 +374,7 @@ export async function reduceNoise(
         }
         args.push(outputName);
 
-        const code = await ffmpeg.exec(args);
+        const code = await execWithTimeout(ffmpeg, args, "Noise reduction (arnndn)");
 
         // Check if output file was actually created successfully
         try {
@@ -334,11 +385,11 @@ export async function reduceNoise(
         }
       }
     } catch (err) {
-      console.warn("arnndn setup failed, will fallback to afftdn", err);
+      console.warn("[ffmpeg] arnndn attempt failed or timed out, falling back to afftdn:", err);
     }
 
     if (!arnndnSuccess) {
-      console.log("Using afftdn fallback for noise reduction");
+      console.log("[ffmpeg] Using afftdn fallback for noise reduction");
       const fallbackArgs = [
         "-i", inputName,
         "-af", "highpass=f=100,afftdn=nr=10:nf=-20:tn=1"
@@ -348,7 +399,7 @@ export async function reduceNoise(
       }
       fallbackArgs.push(outputName);
 
-      await ffmpeg.exec(fallbackArgs);
+      await execWithTimeout(ffmpeg, fallbackArgs, "Noise reduction (afftdn)");
     }
 
     const data = await ffmpeg.readFile(outputName);
