@@ -2,33 +2,7 @@
 
 import { CheckCircle } from "lucide-react";
 
-const cleanPrice = (priceStr) => {
-  if (!priceStr) return "";
-  if (priceStr.length <= 15) return priceStr;
-
-  // Look for currency symbols followed by numbers (e.g., ₹5,000, $100, etc.)
-  const match = priceStr.match(/[₹$]\s*[0-9,]+/);
-  if (match) {
-    return match[0];
-  }
-
-  // Look for plain numbers with optional commas (e.g. 5,000 or 12000) and prepend ₹
-  const numberMatch = priceStr.match(/[0-9,]+/);
-  if (numberMatch) {
-    return "₹" + numberMatch[0];
-  }
-
-  // Check for "Custom" tag
-  if (/custom/i.test(priceStr)) {
-    return "Custom";
-  }
-
-  return "Custom";
-};
-
 export default function PricingSection({ settings }) {
-  // Fallbacks if not set in settings or if settings is not loaded yet
-  const priceStarter = cleanPrice(settings?.PriceStarter || "₹4,999");
   const featuresStarterRaw = settings?.FeaturesStarter || [
     "Logo Design (2 concepts)",
     "Business Card Design",
@@ -37,7 +11,6 @@ export default function PricingSection({ settings }) {
     "Final files in PNG & PDF"
   ].join("\n");
 
-  const priceProfessional = cleanPrice(settings?.PriceProfessional || "₹12,999");
   const featuresProfessionalRaw = settings?.FeaturesProfessional || [
     "Everything in Starter",
     "Brand Style Guide (colors, fonts, tone)",
@@ -48,7 +21,6 @@ export default function PricingSection({ settings }) {
     "Source files included"
   ].join("\n");
 
-  const priceEnterprise = cleanPrice(settings?.PriceEnterprise || "Custom");
   const featuresEnterpriseRaw = settings?.FeaturesEnterprise || [
     "Everything in Professional",
     "Full Brand Identity System",
@@ -67,7 +39,8 @@ export default function PricingSection({ settings }) {
   const tiers = [
     {
       name: "Starter",
-      price: priceStarter,
+      oldPrice: "₹5,000",
+      price: "₹2,999",
       note: "One-time",
       description: "Perfect for small businesses and personal brands just getting started.",
       features: featuresStarter,
@@ -76,7 +49,8 @@ export default function PricingSection({ settings }) {
     },
     {
       name: "Professional",
-      price: priceProfessional,
+      oldPrice: "₹12,000",
+      price: "₹5,999",
       note: "One-time",
       description: "Full brand identity for growing businesses ready to make a strong impression.",
       features: featuresProfessional,
@@ -85,7 +59,8 @@ export default function PricingSection({ settings }) {
     },
     {
       name: "Enterprise",
-      price: priceEnterprise,
+      oldPrice: "₹25,000",
+      price: "₹11,699",
       note: "Let's talk",
       description: "Full-service design partnership for brands that demand the best.",
       features: featuresEnterprise,
@@ -157,15 +132,36 @@ export default function PricingSection({ settings }) {
               </div>
               <div
                 style={{
-                  fontFamily: "var(--font-space-grotesk)",
-                  fontSize: "clamp(2rem, 4vw, 2.75rem)",
-                  fontWeight: "800",
-                  letterSpacing: "-0.04em",
-                  color: "var(--text-primary)",
-                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "baseline",
+                  flexWrap: "wrap",
+                  gap: "10px",
                 }}
               >
-                {tier.price}
+                <span
+                  style={{
+                    fontFamily: "var(--font-space-grotesk)",
+                    fontSize: "clamp(1rem, 1.6vw, 1.15rem)",
+                    fontWeight: "600",
+                    color: "var(--text-secondary)",
+                    textDecoration: "line-through",
+                    opacity: 0.6,
+                  }}
+                >
+                  {tier.oldPrice}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-space-grotesk)",
+                    fontSize: "clamp(2rem, 4vw, 2.75rem)",
+                    fontWeight: "800",
+                    letterSpacing: "-0.04em",
+                    color: "var(--text-primary)",
+                    lineHeight: 1,
+                  }}
+                >
+                  {tier.price}
+                </span>
               </div>
               <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px", fontFamily: "var(--font-inter)" }}>
                 {tier.note}
