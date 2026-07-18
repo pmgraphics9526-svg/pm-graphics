@@ -48,9 +48,15 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<any> {
   
   try {
     console.log(`[ffmpeg] Initializing engine... loading core files from local paths under: ${baseURL}`);
-    
+
+    // ffmpeg-core.wasm is ~32MB. On a real (non-loopback) connection this
+    // routinely takes 20-40+ seconds — 15s was tuned against localhost and
+    // fired before the download could ever finish in production. 90s gives
+    // real headroom; the "first load may take a moment" copy in the UI
+    // already sets that expectation, and the loaded instance is cached in
+    // module state so this cost is paid once per session, not per mix.
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("FFmpeg loading timed out after 15 seconds")), 15000)
+      setTimeout(() => reject(new Error("FFmpeg loading timed out after 90 seconds")), 90000)
     );
 
     // Note: The UMD build resolves its worker chunk '814.ffmpeg.js' relative to the path where ffmpeg.js was loaded.
