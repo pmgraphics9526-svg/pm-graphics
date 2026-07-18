@@ -105,6 +105,48 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // The audio tools (Music Mixer, Audio Trim, Noise Reduce) load a
+        // multi-threaded ffmpeg.wasm build, which needs SharedArrayBuffer.
+        // Browsers only expose that in a cross-origin-isolated context, so
+        // the tool pages themselves need COEP+COOP. Scoped to /tools/ only
+        // — applying this site-wide would risk breaking third-party embeds
+        // (Google reCAPTCHA/Maps, Airtable images) used elsewhere.
+        source: '/tools/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+      {
+        // Once COEP is active, every subresource the isolated page loads
+        // must explicitly allow cross-origin loading. The ffmpeg core/wasm
+        // files are same-origin, but CORP makes that explicit regardless
+        // of how the library's internal fetch/worker loading resolves it.
+        // worker.js also needs its own COEP header — Chrome only grants a
+        // dedicated Worker cross-origin-isolated status (and thus
+        // SharedArrayBuffer) if the worker script's own response declares
+        // require-corp too; without it the worker load is blocked outright
+        // (net::ERR_BLOCKED_BY_RESPONSE), which is what silently stalled
+        // ffmpeg-core.wasm from ever being requested.
+        source: '/ffmpeg/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
     ];
   },
 };
