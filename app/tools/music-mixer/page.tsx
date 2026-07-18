@@ -33,6 +33,7 @@ export default function MusicMixerPage() {
   const [tracks, setTracks] = useState<TrackData[]>([]);
   const [mixing, setMixing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +97,11 @@ export default function MusicMixerPage() {
     setResultUrl(null);
     setMixing(true);
     setProgress(0);
+    // Note: loadProgress is intentionally NOT reset here. The ffmpeg engine
+    // is cached after its first load (see ffmpegInstance in ffmpegMix.ts),
+    // so onLoadProgress only ever fires on the very first mix of a session
+    // — leaving it at whatever it settled on (1, i.e. 100%) means later
+    // mixes go straight to "Mixing..." instead of flashing "Loading... 0%".
     try {
       const clips: ClipSelection[] = tracks.map((track) => ({
         file: track.file,
@@ -107,6 +113,7 @@ export default function MusicMixerPage() {
         crossfadeSeconds: 0.75,
         outputFormat: "mp3",
         onProgress: setProgress,
+        onLoadProgress: setLoadProgress,
       });
       setResultUrl(URL.createObjectURL(blob));
     } catch (err: any) {
@@ -270,7 +277,9 @@ export default function MusicMixerPage() {
                 onClick={handleMix}
               >
                 {mixing
-                  ? (progress === 0 ? "Loading audio engine (first load may take a moment)…" : `Mixing… ${Math.round(progress * 100)}%`)
+                  ? (progress === 0 && loadProgress < 1
+                      ? `Loading audio engine… ${Math.round(loadProgress * 100)}%`
+                      : `Mixing… ${Math.round(progress * 100)}%`)
                   : "Mix tracks"}
               </button>
               {!canMix && tracks.length >= 2 && (

@@ -15,13 +15,50 @@ export interface MixOptions {
   clips: ClipSelection[];
   crossfadeSeconds?: number; // default 0.75s, within the 0.5–1s spec range
   outputFormat?: "mp3" | "wav";
-  onProgress?: (ratio: number) => void; // 0..1
+  onProgress?: (ratio: number) => void; // 0..1, mixing/processing progress
+  onLoadProgress?: (ratio: number) => void; // 0..1, one-time engine download progress
 }
 
 // Load dynamically on window in the browser, avoiding any bundler compiling
 let ffmpegInstance: any = null;
 
-async function getFFmpeg(onLog?: (msg: string) => void): Promise<any> {
+// Fetches a URL while reporting byte-level download progress. ffmpeg.load()'s
+// own internal fetch is opaque (no progress events), so this pre-fetch is
+// what actually drives the loading UI; the browser's HTTP cache (see the
+// immutable Cache-Control on /ffmpeg/*) then makes ffmpeg.load()'s own
+// fetch of the same URL resolve instantly right after.
+async function fetchWithProgress(
+  url: string,
+  onChunk?: (loadedBytes: number) => void
+): Promise<Blob> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
+  }
+  if (!res.body) {
+    // No streaming support (rare) — fall back to a single non-progressive read.
+    return res.blob();
+  }
+
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    if (onChunk) onChunk(loaded);
+  }
+
+  return new Blob(chunks as BlobPart[]);
+}
+
+async function getFFmpeg(
+  onLog?: (msg: string) => void,
+  onLoadProgress?: (ratio: number) => void
+): Promise<any> {
   if (ffmpegInstance) return ffmpegInstance;
 
   if (typeof window === "undefined") {
@@ -34,7 +71,7 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<any> {
   }
 
   const ffmpeg = new FFmpegClass();
-  
+
   // Register a default console logger for debugging, and a custom one if provided
   ffmpeg.on("log", ({ message }: any) => {
     console.log("[ffmpeg]", message);
@@ -45,18 +82,52 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<any> {
 
   // Load from local public/ffmpeg folder to avoid cross-origin / COEP blocking issues
   const baseURL = window.location.origin + "/ffmpeg";
-  
+
   try {
     console.log(`[ffmpeg] Initializing engine... loading core files from local paths under: ${baseURL}`);
 
-    // ffmpeg-core.wasm is ~32MB. On a real (non-loopback) connection this
-    // routinely takes 20-40+ seconds — 15s was tuned against localhost and
-    // fired before the download could ever finish in production. 90s gives
-    // real headroom; the "first load may take a moment" copy in the UI
-    // already sets that expectation, and the loaded instance is cached in
-    // module state so this cost is paid once per session, not per mix.
+    // ffmpeg-core.wasm is ~32MB — the dominant cost by far (ffmpeg-core.js
+    // is ~110KB). Passing blob: URLs to ffmpeg.load() is the usual trick
+    // for progress-tracked loading, but it doesn't work here: with
+    // COEP: require-corp active (needed for SharedArrayBuffer), Chrome's
+    // internal fetch of a blob: URL fails outright (TypeError: Failed to
+    // fetch) — confirmed by testing. So instead: fetch both files
+    // ourselves first purely to drive the progress UI and warm the HTTP
+    // cache (these files are served with a long immutable Cache-Control),
+    // then hand ffmpeg.load() the original same-origin URLs — its
+    // internal fetch resolves from that warm cache instantly rather than
+    // re-downloading.
+    const ESTIMATED_WASM_BYTES = 32_000_000;
+
+    const headRes = await fetch(`${baseURL}/ffmpeg-core.wasm`, { method: "HEAD" }).catch(() => null);
+    const wasmTotal = Number(headRes?.headers.get("content-length")) || ESTIMATED_WASM_BYTES;
+    const jsTotal = 115_000; // ffmpeg-core.js is tiny relative to the wasm; a rough estimate is fine
+    const grandTotal = wasmTotal + jsTotal;
+
+    let jsLoaded = 0;
+    let wasmLoaded = 0;
+    const reportCombined = () => {
+      if (!onLoadProgress) return;
+      onLoadProgress(Math.min(1, (jsLoaded + wasmLoaded) / grandTotal));
+    };
+
+    await Promise.all([
+      fetchWithProgress(`${baseURL}/ffmpeg-core.js`, (loaded) => {
+        jsLoaded = loaded;
+        reportCombined();
+      }),
+      fetchWithProgress(`${baseURL}/ffmpeg-core.wasm`, (loaded) => {
+        wasmLoaded = loaded;
+        reportCombined();
+      }),
+    ]);
+
+    // True fallback only — normal loads finish via the fetches above and
+    // never hit this. This guards against a genuinely stuck/dead
+    // connection (e.g. WiFi drops mid-download) rather than being the
+    // primary UX, which is now the real progress percentage above.
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("FFmpeg loading timed out after 90 seconds")), 90000)
+      setTimeout(() => reject(new Error("FFmpeg loading timed out after 4 minutes")), 240000)
     );
 
     // Note: The UMD build resolves its worker chunk '814.ffmpeg.js' relative to the path where ffmpeg.js was loaded.
@@ -87,12 +158,13 @@ export async function mixTracks({
   crossfadeSeconds = 0.75,
   outputFormat = "mp3",
   onProgress,
+  onLoadProgress,
 }: MixOptions): Promise<Blob> {
   if (clips.length < 2) {
     throw new Error("Select at least 2 clips to mix.");
   }
 
-  const ffmpeg = await getFFmpeg();
+  const ffmpeg = await getFFmpeg(undefined, onLoadProgress);
 
   // Store listener ref so we can remove it after the operation — prevents
   // stale listeners from stacking up on repeated calls (memory leak fix).
@@ -168,9 +240,10 @@ export async function trimAudio(
   start: number,
   end: number,
   outputFormat: "mp3" | "wav" = "mp3",
-  onProgress?: (ratio: number) => void
+  onProgress?: (ratio: number) => void,
+  onLoadProgress?: (ratio: number) => void
 ): Promise<Blob> {
-  const ffmpeg = await getFFmpeg();
+  const ffmpeg = await getFFmpeg(undefined, onLoadProgress);
 
   let progressListener: ((e: any) => void) | null = null;
   if (onProgress) {
@@ -213,9 +286,10 @@ export async function trimAudio(
 export async function reduceNoise(
   file: File,
   outputFormat: "mp3" | "wav" = "mp3",
-  onProgress?: (ratio: number) => void
+  onProgress?: (ratio: number) => void,
+  onLoadProgress?: (ratio: number) => void
 ): Promise<Blob> {
-  const ffmpeg = await getFFmpeg();
+  const ffmpeg = await getFFmpeg(undefined, onLoadProgress);
 
   let progressListener: ((e: any) => void) | null = null;
   if (onProgress) {

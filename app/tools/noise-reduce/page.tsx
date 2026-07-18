@@ -26,6 +26,7 @@ export default function NoiseReducePage() {
   const [cleanedUrl, setCleanedUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   useEffect(() => {
     if (file) {
@@ -41,9 +42,14 @@ export default function NoiseReducePage() {
     try {
       setIsProcessing(true);
       setProgress(0);
-      const blob = await reduceNoise(file, "mp3", (ratio) => {
-        setProgress(ratio);
-      });
+      // loadProgress is intentionally not reset — the ffmpeg engine is
+      // cached after its first load, so this only ticks up once per session.
+      const blob = await reduceNoise(
+        file,
+        "mp3",
+        (ratio) => setProgress(ratio),
+        (ratio) => setLoadProgress(ratio)
+      );
       const url = URL.createObjectURL(blob);
       setCleanedUrl(url);
     } catch (err) {
@@ -255,11 +261,13 @@ export default function NoiseReducePage() {
                   <div className="nr-progress-bar-track">
                     <div
                       className="nr-progress-bar-fill"
-                      style={{ width: `${Math.round(progress * 100)}%` }}
+                      style={{ width: `${Math.round((progress === 0 && loadProgress < 1 ? loadProgress : progress) * 100)}%` }}
                     />
                   </div>
                   <p className="nr-progress-label">
-                    Removing noise… {Math.round(progress * 100)}%
+                    {progress === 0 && loadProgress < 1
+                      ? `Loading audio engine… ${Math.round(loadProgress * 100)}%`
+                      : `Removing noise… ${Math.round(progress * 100)}%`}
                   </p>
                 </div>
               ) : !cleanedUrl ? (

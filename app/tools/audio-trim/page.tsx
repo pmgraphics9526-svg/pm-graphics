@@ -18,6 +18,7 @@ export default function AudioTrimPage() {
   const [selection, setSelection] = useState<TrackSelection | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   const handleTrimAndDownload = async () => {
     if (!file || !selection) return;
@@ -25,10 +26,17 @@ export default function AudioTrimPage() {
     try {
       setIsProcessing(true);
       setProgress(0);
+      // loadProgress is intentionally not reset — the ffmpeg engine is
+      // cached after its first load, so this only ticks up once per session.
 
-      const blob = await trimAudio(file, selection.start, selection.end, "mp3", (ratio) => {
-        setProgress(ratio);
-      });
+      const blob = await trimAudio(
+        file,
+        selection.start,
+        selection.end,
+        "mp3",
+        (ratio) => setProgress(ratio),
+        (ratio) => setLoadProgress(ratio)
+      );
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -187,7 +195,9 @@ export default function AudioTrimPage() {
                 {isProcessing ? (
                   <>
                     <span className="spinner" style={{ border: '2px solid rgba(0,0,0,0.1)', borderTopColor: '#000', borderRadius: '50%', width: '16px', height: '16px', animation: 'spin 1s linear infinite' }}></span>
-                    Processing... {Math.round(progress * 100)}%
+                    {progress === 0 && loadProgress < 1
+                      ? `Loading audio engine… ${Math.round(loadProgress * 100)}%`
+                      : `Processing... ${Math.round(progress * 100)}%`}
                   </>
                 ) : (
                   <>

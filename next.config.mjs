@@ -129,18 +129,42 @@ const nextConfig = {
         // must explicitly allow cross-origin loading. The ffmpeg core/wasm
         // files are same-origin, but CORP makes that explicit regardless
         // of how the library's internal fetch/worker loading resolves it.
-        // worker.js also needs its own COEP header — Chrome only grants a
-        // dedicated Worker cross-origin-isolated status (and thus
-        // SharedArrayBuffer) if the worker script's own response declares
-        // require-corp too; without it the worker load is blocked outright
-        // (net::ERR_BLOCKED_BY_RESPONSE), which is what silently stalled
-        // ffmpeg-core.wasm from ever being requested.
+        // (COEP itself is applied only to worker.js below, not here — see
+        // that block for why.)
         source: '/ffmpeg/:path*',
         headers: [
           {
             key: 'Cross-Origin-Resource-Policy',
             value: 'cross-origin',
           },
+          {
+            // ffmpeg-core.wasm is ~32MB. These files are static, versioned
+            // by filename in effect (a new ffmpeg.wasm version would ship
+            // under different filenames), and never change without a
+            // deploy — Next's default `public/` serving sends
+            // max-age=0, must-revalidate, which forces a full re-download
+            // on every single visit. Cache them for a year instead.
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Chrome only grants a dedicated Worker cross-origin-isolated status
+        // (and thus SharedArrayBuffer) if the worker script's OWN response
+        // declares require-corp — without it, worker.js load is blocked
+        // outright (net::ERR_BLOCKED_BY_RESPONSE), which is what silently
+        // stalled ffmpeg-core.wasm from ever being requested.
+        //
+        // This is scoped to worker.js specifically, not the whole /ffmpeg/
+        // directory: ffmpeg-core.js/.wasm are plain fetched data, not a
+        // document or worker context, so they don't need their own COEP —
+        // only CORP (above) matters for them. Declaring COEP on those large
+        // files too made Chrome's HTTP cache refuse to reuse them at all
+        // (repeated full 9.6MB re-transfers even with immutable set) —
+        // confirmed by testing with/without this header on the wasm file.
+        source: '/ffmpeg/worker.js',
+        headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
             value: 'require-corp',
