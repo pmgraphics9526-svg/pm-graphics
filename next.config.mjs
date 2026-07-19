@@ -125,6 +125,25 @@ const nextConfig = {
         ],
       },
       {
+        // Same reasoning as the /tools/ rule above — the video editor's
+        // export pipeline reuses the same multi-threaded ffmpeg.wasm build,
+        // which needs SharedArrayBuffer (only available cross-origin-
+        // isolated). Scoped to this one page specifically, not all of
+        // /dev-tools/, since auto-edit doesn't use ffmpeg.wasm and doesn't
+        // need the isolation.
+        source: '/dev-tools/video-editor/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+      {
         // Once COEP is active, every subresource the isolated page loads
         // must explicitly allow cross-origin loading. The ffmpeg core/wasm
         // files are same-origin, but CORP makes that explicit regardless

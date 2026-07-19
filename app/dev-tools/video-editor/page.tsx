@@ -37,7 +37,9 @@
  */
 
 import Link from "next/link";
+import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
+import { exportVideo } from "@/lib/video-editor/export";
 
 // ---- Design tokens (matches auto-edit/page.tsx) ----
 const COLORS = {
@@ -58,8 +60,14 @@ const COLORS = {
   textTrackAccent: "#7dd3fc",
 };
 
-type ToolId = "media" | "crop" | "rotate" | "speed" | "color" | "text" | "audio";
+// Media/Color/Text/Audio stay in the left sidebar + right panel. Crop/
+// Rotate/Speed moved to compact popover buttons near the transport bar
+// (quick-adjustment tools, not primary navigation) — tracked separately via
+// `openPopover` so they're fully decoupled from the sidebar/right-panel.
+type ToolId = "media" | "color" | "text" | "audio";
+type PopoverTool = "crop" | "rotate" | "speed";
 type AutoEditStage = "idle" | "paying" | "verifying" | "analyzing" | "done" | "error";
+type ExportStage = "idle" | "loading" | "rendering" | "done" | "error";
 
 // Minimal shape of the Razorpay Checkout.js global — the SDK is loaded
 // dynamically at runtime (loadRazorpayScript), it ships no official types.
@@ -97,6 +105,24 @@ interface EditBlock {
   trimStart: number; // 0-1 fraction trimmed off the left (in-point)
   trimEnd: number; // 0-1 fraction trimmed off the right (out-point)
   widthFrac: number; // relative width within its track row (flex-grow basis)
+  // Fixed, reorder-independent pointer into the ORIGINAL uploaded file's own
+  // timeline (0-1 fraction of its total duration) — set once at upload/
+  // split time and never touched by later drag-reordering, which only
+  // changes array order, not what source footage a block represents. Export
+  // uses these (combined with trimStart/trimEnd) to know exactly which
+  // range of the source file each block should pull from.
+  sourceStartFrac: number;
+  sourceEndFrac: number;
+  // Set via the segment's right-click context menu — blocks drag-reorder,
+  // trim, and delete while true (checked at each of those call sites).
+  locked: boolean;
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  trackKind: TrackKind;
+  blockId: string;
 }
 
 interface CropRect {
@@ -152,12 +178,27 @@ const CROP_PRESETS: { label: string; ratio: number | null }[] = [
 
 const TOOLS: { id: ToolId; icon: string; label: string; enabled: boolean }[] = [
   { id: "media", icon: "🗂️", label: "Media", enabled: true },
-  { id: "crop", icon: "⬛", label: "Crop", enabled: true },
-  { id: "rotate", icon: "🔄", label: "Rotate", enabled: true },
-  { id: "speed", icon: "⏱️", label: "Speed", enabled: true },
   { id: "color", icon: "🎨", label: "Color", enabled: true },
   { id: "text", icon: "🔤", label: "Text", enabled: true },
   { id: "audio", icon: "🔊", label: "Audio", enabled: false },
+];
+
+// Quick-adjustment tools rendered as compact icon buttons near the
+// transport bar instead of the large left sidebar — each opens a small
+// popover with its (unchanged) controls.
+const QUICK_TOOLS: { id: PopoverTool; icon: string; label: string }[] = [
+  { id: "crop", icon: "⬛", label: "Crop" },
+  { id: "rotate", icon: "🔄", label: "Rotate" },
+  { id: "speed", icon: "⏱️", label: "Speed" },
+];
+
+const CONTEXT_MENU_ITEMS: { id: "replace" | "keyframe" | "lock" | "duplicate" | "delete" | "split"; label: string; icon: string }[] = [
+  { id: "replace", label: "Replace", icon: "🔁" },
+  { id: "keyframe", label: "Keyframe", icon: "◆" },
+  { id: "lock", label: "Lock", icon: "🔒" },
+  { id: "duplicate", label: "Duplicate", icon: "⧉" },
+  { id: "delete", label: "Delete", icon: "🗑️" },
+  { id: "split", label: "Split", icon: "✂️" },
 ];
 
 function formatTime(seconds: number): string {
@@ -211,10 +252,15 @@ function splitBlocksAt(blocks: EditBlock[], playheadFrac: number, prefix: string
     const b = blocks[i];
     const bStart = cursor / total;
     const bEnd = (cursor + b.widthFrac) / total;
-    if (playheadFrac > bStart + 0.01 && playheadFrac < bEnd - 0.01) {
+    if (!b.locked && playheadFrac > bStart + 0.01 && playheadFrac < bEnd - 0.01) {
       const localF = (playheadFrac - bStart) / (bEnd - bStart);
-      const left: EditBlock = { id: `${prefix}-${Date.now()}-l`, trimStart: b.trimStart, trimEnd: 0, widthFrac: b.widthFrac * localF };
-      const right: EditBlock = { id: `${prefix}-${Date.now()}-r`, trimStart: 0, trimEnd: b.trimEnd, widthFrac: b.widthFrac * (1 - localF) };
+      // The split point in the SOURCE file's own timeline, derived from
+      // this block's own fixed sourceStartFrac/sourceEndFrac (not from its
+      // current array position) — correct even if this block was earlier
+      // drag-reordered away from its original neighbors.
+      const splitSourceFrac = b.sourceStartFrac + localF * (b.sourceEndFrac - b.sourceStartFrac);
+      const left: EditBlock = { id: `${prefix}-${Date.now()}-l`, trimStart: b.trimStart, trimEnd: 0, widthFrac: b.widthFrac * localF, sourceStartFrac: b.sourceStartFrac, sourceEndFrac: splitSourceFrac, locked: false };
+      const right: EditBlock = { id: `${prefix}-${Date.now()}-r`, trimStart: 0, trimEnd: b.trimEnd, widthFrac: b.widthFrac * (1 - localF), sourceStartFrac: splitSourceFrac, sourceEndFrac: b.sourceEndFrac, locked: false };
       const next = [...blocks];
       next.splice(i, 1, left, right);
       return next;
@@ -226,7 +272,17 @@ function splitBlocksAt(blocks: EditBlock[], playheadFrac: number, prefix: string
 
 export default function VideoEditorPage() {
   const [activeTool, setActiveTool] = useState<ToolId>("media");
+  const [openPopover, setOpenPopover] = useState<PopoverTool | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+
+  // Independent playback controls: the uploaded video's OWN audio vs the
+  // separately-uploaded Audio track — genuinely separate <video>/<audio>
+  // element properties, not a shared value.
+  const [videoMuted, setVideoMuted] = useState(false);
+  const [videoVolume, setVideoVolume] = useState(1);
+  const [audioTrackMuted, setAudioTrackMuted] = useState(false);
+  const [audioTrackVolume, setAudioTrackVolume] = useState(1);
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -260,10 +316,23 @@ export default function VideoEditorPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [videoWidth, setVideoWidth] = useState(0);
+  const [videoHeight, setVideoHeight] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [playheadFrac, setPlayheadFrac] = useState(0);
+
+  // Export: real ffmpeg.wasm render of every edit currently in state (see
+  // lib/video-editor/export.ts). Independent of the Auto Edit payment flow.
+  const [exportStage, setExportStage] = useState<ExportStage>("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStageLabel, setExportStageLabel] = useState("");
+  const [exportResultUrl, setExportResultUrl] = useState<string | null>(null);
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const replaceVideoInputRef = useRef<HTMLInputElement>(null);
+  const replaceAudioInputRef = useRef<HTMLInputElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -293,7 +362,7 @@ export default function VideoEditorPage() {
   useEffect(() => {
     if (videoFile) {
       const id = `v-${Date.now()}`;
-      setVideoBlocks([{ id, trimStart: 0, trimEnd: 0, widthFrac: 1 }]);
+      setVideoBlocks([{ id, trimStart: 0, trimEnd: 0, widthFrac: 1, sourceStartFrac: 0, sourceEndFrac: 1, locked: false }]);
       setSegmentEdits({});
       setSelectedSegmentId(id);
     } else {
@@ -306,7 +375,7 @@ export default function VideoEditorPage() {
   }, [videoFile]);
 
   useEffect(() => {
-    setAudioBlocks(audioFile ? [{ id: `a-${Date.now()}`, trimStart: 0, trimEnd: 0, widthFrac: 1 }] : []);
+    setAudioBlocks(audioFile ? [{ id: `a-${Date.now()}`, trimStart: 0, trimEnd: 0, widthFrac: 1, sourceStartFrac: 0, sourceEndFrac: 1, locked: false }] : []);
   }, [audioFile]);
 
   // ---- Audio meter: object URL for the uploaded audio file ----
@@ -334,6 +403,23 @@ export default function VideoEditorPage() {
     const v = previewVideoRef.current;
     if (v) v.playbackRate = currentEdit.speed;
   }, [currentEdit.speed, videoUrl]);
+
+  // ---- Independent mute/volume: video's own sound vs the separate audio
+  // track, each wired to their own real media element ----
+  useEffect(() => {
+    const v = previewVideoRef.current;
+    if (v) {
+      v.muted = videoMuted;
+      v.volume = videoVolume;
+    }
+  }, [videoMuted, videoVolume, videoUrl]);
+  useEffect(() => {
+    const a = audioElRef.current;
+    if (a) {
+      a.muted = audioTrackMuted;
+      a.volume = audioTrackVolume;
+    }
+  }, [audioTrackMuted, audioTrackVolume, audioUrl]);
 
   // ---- Audio level meter (Web Audio API) ----
   // Lazily builds the graph on first use, in direct response to a user
@@ -425,7 +511,15 @@ export default function VideoEditorPage() {
   };
   const handleLoadedMetadata = () => {
     const v = previewVideoRef.current;
-    if (v) setDuration(v.duration);
+    if (v) {
+      setDuration(v.duration);
+      setVideoWidth(v.videoWidth);
+      setVideoHeight(v.videoHeight);
+    }
+  };
+  const handleAudioLoadedMetadata = () => {
+    const a = audioElRef.current;
+    if (a) setAudioDuration(a.duration);
   };
 
   // ---- Playhead seek (click or drag on the timeline ruler) ----
@@ -515,6 +609,109 @@ export default function VideoEditorPage() {
     }
   };
   const handleSplitAudio = () => setAudioBlocks((prev) => splitBlocksAt(prev, playheadFrac, "a"));
+
+  // ---- Segment context menu (right-click a Video/Text/Audio block) ----
+  // Right-click was chosen over click-and-hold: it's the standard desktop-
+  // web pattern for a timeline/editor context menu (matches Figma, most NLE
+  // web apps), whereas click-and-hold is primarily a touch/mobile idiom.
+  const handleBlockContextMenu = (trackKind: TrackKind, id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, trackKind, blockId: id });
+  };
+  const closeContextMenu = () => setContextMenu(null);
+
+  // Dismiss the context menu on outside click or Escape.
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => closeContextMenu();
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeContextMenu();
+    };
+    window.addEventListener("click", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [contextMenu]);
+
+  const handleMenuToggleLock = () => {
+    if (!contextMenu) return;
+    const { trackKind, blockId } = contextMenu;
+    const setBlocks = trackKind === "video" ? setVideoBlocks : setAudioBlocks;
+    setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, locked: !b.locked } : b)));
+    closeContextMenu();
+  };
+
+  const handleMenuDuplicate = () => {
+    if (!contextMenu) return;
+    const { trackKind, blockId } = contextMenu;
+    const prefix = trackKind === "video" ? "v" : "a";
+    // Generated once, up front, so the SAME id is used both for the new
+    // array entry and (for video) its copied segmentEdits — matches the
+    // same "compute once, then issue plain top-level setState calls"
+    // pattern used by handleSplitVideo, for the same reason: nesting a
+    // second setState inside another's functional updater is unsafe under
+    // React's dev-mode double-invoke purity check.
+    const newId = `${prefix}-${Date.now()}-copy`;
+    const blocks = trackKind === "video" ? videoBlocks : audioBlocks;
+    const idx = blocks.findIndex((b) => b.id === blockId);
+    if (idx === -1) {
+      closeContextMenu();
+      return;
+    }
+    const copy: EditBlock = { ...blocks[idx], id: newId, locked: false };
+    const next = [...blocks];
+    next.splice(idx + 1, 0, copy);
+    if (trackKind === "video") {
+      setVideoBlocks(next);
+      setSegmentEdits((prev) => {
+        const original = prev[blockId];
+        return original ? { ...prev, [newId]: original } : prev;
+      });
+    } else {
+      setAudioBlocks(next);
+    }
+    closeContextMenu();
+  };
+
+  const handleMenuDelete = () => {
+    if (!contextMenu) return;
+    const { trackKind, blockId } = contextMenu;
+    if (trackKind === "video") {
+      setVideoBlocks((prev) => prev.filter((b) => b.id !== blockId));
+      setSegmentEdits((prev) => {
+        const rest = { ...prev };
+        delete rest[blockId];
+        return rest;
+      });
+      setSelectedSegmentId((prev) => (prev === blockId ? null : prev));
+    } else {
+      setAudioBlocks((prev) => prev.filter((b) => b.id !== blockId));
+    }
+    closeContextMenu();
+  };
+
+  // Replace: opens a real file picker for the segment's track type. Actual
+  // source-swap is genuinely out of scope for this pass — the whole
+  // timeline is built from ONE uploaded file per track (sliced via each
+  // block's sourceStartFrac/sourceEndFrac), so swapping a single segment's
+  // source would need a per-block file reference, a real architecture
+  // change, not a UI relocation. TODO(future phase): wire actual
+  // replacement once per-block source files are supported.
+  const handleMenuReplace = () => {
+    if (!contextMenu) return;
+    const input = contextMenu.trackKind === "video" ? replaceVideoInputRef.current : replaceAudioInputRef.current;
+    input?.click();
+    closeContextMenu();
+  };
+
+  const handleMenuSplit = () => {
+    if (!contextMenu) return;
+    if (contextMenu.trackKind === "video") handleSplitVideo();
+    else handleSplitAudio();
+    closeContextMenu();
+  };
 
   // ---- Per-segment crop/rotate/speed edits ----
   const updateSelectedEdit = (patch: Partial<SegmentEdit>) => {
@@ -611,7 +808,7 @@ export default function VideoEditorPage() {
     window.addEventListener("pointerup", handleUp);
   };
 
-  const showCropFrame = !!videoUrl && !!selectedSegmentId && (activeTool === "crop" || !isDefaultCrop(currentEdit.crop));
+  const showCropFrame = !!videoUrl && !!selectedSegmentId && (openPopover === "crop" || !isDefaultCrop(currentEdit.crop));
 
   // ---- Text overlays ----
   const handleAddText = () => {
@@ -817,7 +1014,56 @@ export default function VideoEditorPage() {
     }
   };
 
+  // ---- Export: render every current edit into a real downloadable MP4 ----
+  const handleExportClick = async () => {
+    if (!videoFile || videoBlocks.length === 0 || duration <= 0) return;
+    if (exportResultUrl) URL.revokeObjectURL(exportResultUrl);
+    setExportError(null);
+    setExportResultUrl(null);
+    setExportStage("loading");
+    setExportProgress(0);
+    setExportStageLabel("Loading export engine...");
+    try {
+      const segments = buildExportSegments(videoBlocks, segmentEdits, duration);
+      const audioSegs = buildExportAudioSegments(audioBlocks, audioDuration);
+      const blob = await exportVideo({
+        videoFile,
+        videoWidth,
+        videoHeight,
+        aspectRatio,
+        segments,
+        textOverlays,
+        audioFile,
+        audioSegments: audioSegs,
+        onLoadProgress: (ratio) => setExportProgress(Math.round(ratio * 30)),
+        onProgress: (ratio) => {
+          setExportStage("rendering");
+          setExportStageLabel("Rendering...");
+          setExportProgress(30 + Math.round(ratio * 70));
+        },
+        onStage: (label) => setExportStageLabel(label),
+      });
+      const url = URL.createObjectURL(blob);
+      setExportResultUrl(url);
+      setExportProgress(100);
+      setExportStage("done");
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed.");
+      setExportStage("error");
+    }
+  };
+
+  // Revoke the exported blob URL on unmount so it doesn't leak.
+  useEffect(() => {
+    return () => {
+      if (exportResultUrl) URL.revokeObjectURL(exportResultUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
+    <>
+    <Script src="/ffmpeg/ffmpeg.js" strategy="afterInteractive" />
     <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", backgroundColor: COLORS.bg, color: COLORS.textPrimary, overflow: "hidden" }}>
       {/* ---- Top bar ---- */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.trackHeaderBg, flexShrink: 0 }}>
@@ -840,15 +1086,24 @@ export default function VideoEditorPage() {
           <option value="1:1">1:1</option>
         </select>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={handleExportClick}
+            disabled={!videoUrl || videoBlocks.length === 0 || exportStage !== "idle" || autoEditStage !== "idle"}
+            title={videoUrl ? "Render every current edit into a downloadable MP4" : "Upload a video first"}
+            style={{ borderRadius: 8, border: `1px solid ${COLORS.cardBorder}`, padding: "8px 14px", fontSize: 13, fontWeight: 600, background: "transparent", color: COLORS.textPrimary, opacity: !videoUrl || videoBlocks.length === 0 || exportStage !== "idle" || autoEditStage !== "idle" ? 0.4 : 1, cursor: !videoUrl || videoBlocks.length === 0 || exportStage !== "idle" || autoEditStage !== "idle" ? "not-allowed" : "pointer" }}
+          >
+            &#8681; Export
+          </button>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em", padding: "3px 6px", borderRadius: 4, border: `1px solid ${COLORS.danger}`, color: COLORS.danger }} title="Razorpay TEST mode — no real payments are processed">
             TEST MODE
           </span>
           <button
             type="button"
             onClick={handleAutoEditClick}
-            disabled={!videoUrl || autoEditStage !== "idle"}
+            disabled={!videoUrl || autoEditStage !== "idle" || exportStage !== "idle"}
             title={videoUrl ? "Pay ₹500 (test) to run Auto Edit on this session's video/audio" : "Upload a video first"}
-            style={{ borderRadius: 8, border: "none", padding: "8px 14px", fontSize: 13, fontWeight: 600, backgroundColor: COLORS.accent, color: COLORS.accentText, opacity: !videoUrl || autoEditStage !== "idle" ? 0.4 : 1, cursor: !videoUrl || autoEditStage !== "idle" ? "not-allowed" : "pointer" }}
+            style={{ borderRadius: 8, border: "none", padding: "8px 14px", fontSize: 13, fontWeight: 600, backgroundColor: COLORS.accent, color: COLORS.accentText, opacity: !videoUrl || autoEditStage !== "idle" || exportStage !== "idle" ? 0.4 : 1, cursor: !videoUrl || autoEditStage !== "idle" || exportStage !== "idle" ? "not-allowed" : "pointer" }}
           >
             &#10024; Auto Edit &mdash; &#8377;500
           </button>
@@ -926,6 +1181,7 @@ export default function VideoEditorPage() {
                 onPlay={handleAudioPlay}
                 onPause={handleAudioPause}
                 onEnded={handleAudioEnded}
+                onLoadedMetadata={handleAudioLoadedMetadata}
               />
             )}
 
@@ -934,7 +1190,7 @@ export default function VideoEditorPage() {
                 only appear while the Crop tool itself is active. */}
             {showCropFrame && (
               <div
-                onPointerDown={activeTool === "crop" ? startCropMove : undefined}
+                onPointerDown={openPopover === "crop" ? startCropMove : undefined}
                 style={{
                   position: "absolute",
                   left: `${currentEdit.crop.x}%`,
@@ -944,11 +1200,11 @@ export default function VideoEditorPage() {
                   border: `2px solid ${COLORS.accent}`,
                   boxShadow: "0 0 0 2000px rgba(0,0,0,0.55)",
                   boxSizing: "border-box",
-                  cursor: activeTool === "crop" ? "move" : "default",
-                  pointerEvents: activeTool === "crop" ? "auto" : "none",
+                  cursor: openPopover === "crop" ? "move" : "default",
+                  pointerEvents: openPopover === "crop" ? "auto" : "none",
                 }}
               >
-                {activeTool === "crop" &&
+                {openPopover === "crop" &&
                   (["nw", "ne", "sw", "se"] as Corner[]).map((corner) => (
                     <div
                       key={corner}
@@ -1006,6 +1262,143 @@ export default function VideoEditorPage() {
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
+
+          {/* Quick-adjustment row: Crop/Rotate/Speed compact icons (each
+              opens a popover with its unchanged controls) + independent
+              Video-sound / Audio-track mute+volume controls. */}
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 16, marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {QUICK_TOOLS.map((tool) => (
+                <div key={tool.id} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenPopover((prev) => (prev === tool.id ? null : tool.id));
+                    }}
+                    title={tool.label}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 6,
+                      border: `1px solid ${openPopover === tool.id ? COLORS.accent : COLORS.cardBorder}`,
+                      background: openPopover === tool.id ? COLORS.card : "transparent",
+                      color: openPopover === tool.id ? COLORS.accent : COLORS.textPrimary,
+                      fontSize: 15,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {tool.icon}
+                  </button>
+
+                  {openPopover === tool.id && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        position: "absolute",
+                        bottom: "calc(100% + 8px)",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 240,
+                        borderRadius: 12,
+                        border: `1px solid ${COLORS.cardBorder}`,
+                        backgroundColor: COLORS.card,
+                        padding: 16,
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                        zIndex: 50,
+                        textAlign: "left",
+                      }}
+                    >
+                      {tool.id === "crop" && (
+                        <>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 12px" }}>Crop</h3>
+                          {!selectedSegmentId ? (
+                            <p style={{ fontSize: 12, color: COLORS.textMuted, margin: 0 }}>Select a segment in the timeline to crop.</p>
+                          ) : (
+                            <>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                                {CROP_PRESETS.map((p) => (
+                                  <button key={p.label} type="button" onClick={() => applyCropPreset(p.ratio)} style={{ ...presetBtnStyle, fontSize: 11, padding: "6px 4px" }}>
+                                    {p.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <p style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 6 }}>Drag the frame or its corner handles on the preview.</p>
+                              <p style={{ fontSize: 10, color: COLORS.textMuted, fontVariantNumeric: "tabular-nums", margin: 0 }}>
+                                x:{currentEdit.crop.x.toFixed(0)}% y:{currentEdit.crop.y.toFixed(0)}% w:{currentEdit.crop.width.toFixed(0)}% h:{currentEdit.crop.height.toFixed(0)}%
+                              </p>
+                            </>
+                          )}
+                        </>
+                      )}
+
+                      {tool.id === "rotate" && (
+                        <>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 12px" }}>Rotate &amp; Flip</h3>
+                          {!selectedSegmentId ? (
+                            <p style={{ fontSize: 12, color: COLORS.textMuted, margin: 0 }}>Select a segment in the timeline to rotate.</p>
+                          ) : (
+                            <>
+                              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                                {([0, 90, 180, 270] as const).map((deg) => (
+                                  <button
+                                    key={deg}
+                                    type="button"
+                                    onClick={() => updateSelectedEdit({ rotation: deg })}
+                                    style={{ ...presetBtnStyle, fontSize: 11, padding: "6px 4px", backgroundColor: currentEdit.rotation === deg ? COLORS.accent : "transparent", color: currentEdit.rotation === deg ? COLORS.accentText : COLORS.textPrimary, borderColor: currentEdit.rotation === deg ? COLORS.accent : COLORS.cardBorder }}
+                                  >
+                                    {deg}&deg;
+                                  </button>
+                                ))}
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                <ToggleButton label="Flip horizontal" active={currentEdit.flipH} onClick={() => updateSelectedEdit({ flipH: !currentEdit.flipH })} />
+                                <ToggleButton label="Flip vertical" active={currentEdit.flipV} onClick={() => updateSelectedEdit({ flipV: !currentEdit.flipV })} />
+                              </div>
+                            </>
+                          )}
+                        </>
+                      )}
+
+                      {tool.id === "speed" && (
+                        <>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 12px" }}>Speed</h3>
+                          {!selectedSegmentId ? (
+                            <p style={{ fontSize: 12, color: COLORS.textMuted, margin: 0 }}>Select a segment in the timeline to change its speed.</p>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.accent, marginBottom: 6, fontVariantNumeric: "tabular-nums" }}>{currentEdit.speed.toFixed(2)}x</div>
+                              <input
+                                type="range"
+                                min={0.25}
+                                max={3}
+                                step={0.05}
+                                value={currentEdit.speed}
+                                onChange={(e) => updateSelectedEdit({ speed: Number(e.target.value) })}
+                                style={{ width: "100%", accentColor: COLORS.accent }}
+                              />
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: COLORS.textMuted }}>
+                                <span>0.25x</span>
+                                <span>3x</span>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ width: 1, height: 20, backgroundColor: COLORS.cardBorder }} />
+
+            <SoundControl label="Video sound" muted={videoMuted} volume={videoVolume} onToggleMute={() => setVideoMuted((m) => !m)} onVolumeChange={setVideoVolume} />
+            {audioFile && <SoundControl label="Audio track" muted={audioTrackMuted} volume={audioTrackVolume} onToggleMute={() => setAudioTrackMuted((m) => !m)} onVolumeChange={setAudioTrackVolume} />}
+          </div>
         </div>
 
         {/* Right panel */}
@@ -1020,83 +1413,6 @@ export default function VideoEditorPage() {
                 <UploadSlot label="Audio" sublabel={audioFile ? audioFile.name : "Upload a track"} icon="🎵" onClick={() => audioInputRef.current?.click()} filled={!!audioFile} />
                 <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)} />
               </div>
-            </>
-          )}
-
-          {activeTool === "crop" && (
-            <>
-              <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 16px" }}>Crop</h2>
-              {!selectedSegmentId ? (
-                <p style={{ fontSize: 12, color: COLORS.textMuted }}>Upload a video and select a segment in the timeline to crop.</p>
-              ) : (
-                <>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                    {CROP_PRESETS.map((p) => (
-                      <button key={p.label} type="button" onClick={() => applyCropPreset(p.ratio)} style={presetBtnStyle}>
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                  <p style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8 }}>Drag the frame or its corner handles on the preview to adjust.</p>
-                  <p style={{ fontSize: 11, color: COLORS.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                    x:{currentEdit.crop.x.toFixed(0)}% y:{currentEdit.crop.y.toFixed(0)}% w:{currentEdit.crop.width.toFixed(0)}% h:{currentEdit.crop.height.toFixed(0)}%
-                  </p>
-                </>
-              )}
-            </>
-          )}
-
-          {activeTool === "rotate" && (
-            <>
-              <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 16px" }}>Rotate &amp; Flip</h2>
-              {!selectedSegmentId ? (
-                <p style={{ fontSize: 12, color: COLORS.textMuted }}>Upload a video and select a segment in the timeline to rotate.</p>
-              ) : (
-                <>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                    {([0, 90, 180, 270] as const).map((deg) => (
-                      <button
-                        key={deg}
-                        type="button"
-                        onClick={() => updateSelectedEdit({ rotation: deg })}
-                        style={{ ...presetBtnStyle, backgroundColor: currentEdit.rotation === deg ? COLORS.accent : "transparent", color: currentEdit.rotation === deg ? COLORS.accentText : COLORS.textPrimary, borderColor: currentEdit.rotation === deg ? COLORS.accent : COLORS.cardBorder }}
-                      >
-                        {deg}&deg;
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <ToggleButton label="Flip horizontal" active={currentEdit.flipH} onClick={() => updateSelectedEdit({ flipH: !currentEdit.flipH })} />
-                    <ToggleButton label="Flip vertical" active={currentEdit.flipV} onClick={() => updateSelectedEdit({ flipV: !currentEdit.flipV })} />
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {activeTool === "speed" && (
-            <>
-              <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 16px" }}>Speed</h2>
-              {!selectedSegmentId ? (
-                <p style={{ fontSize: 12, color: COLORS.textMuted }}>Upload a video and select a segment in the timeline to change its speed.</p>
-              ) : (
-                <>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.accent, marginBottom: 8, fontVariantNumeric: "tabular-nums" }}>{currentEdit.speed.toFixed(2)}x</div>
-                  <input
-                    type="range"
-                    min={0.25}
-                    max={3}
-                    step={0.05}
-                    value={currentEdit.speed}
-                    onChange={(e) => updateSelectedEdit({ speed: Number(e.target.value) })}
-                    style={{ width: "100%", accentColor: COLORS.accent }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: COLORS.textMuted }}>
-                    <span>0.25x</span>
-                    <span>3x</span>
-                  </div>
-                </>
-              )}
             </>
           )}
 
@@ -1188,8 +1504,10 @@ export default function VideoEditorPage() {
             ))}
           </div>
 
-          {/* Video track — blocks are click-to-select (drives the Crop/Rotate/Speed panels) */}
-          <TrackShell label="Video" icon="🎥" onSplit={handleSplitVideo} splitDisabled={videoBlocks.length === 0}>
+          {/* Video track — blocks are click-to-select (drives the Crop/
+              Rotate/Speed popovers) and right-click for the segment
+              context menu (Replace/Keyframe/Lock/Duplicate/Delete/Split). */}
+          <TrackShell label="Video" icon="🎥">
             {videoBlocks.length === 0 ? (
               <EmptyTrackHint text="No video uploaded" />
             ) : (
@@ -1199,6 +1517,7 @@ export default function VideoEditorPage() {
                 onDragStart={setDragVideoId}
                 onDrop={handleVideoDrop}
                 onTrim={trimVideoBlock}
+                onContextMenu={(id, e) => handleBlockContextMenu("video", id, e)}
                 renderContent={() => <span>Video</span>}
                 selectedId={selectedSegmentId}
                 onSelect={setSelectedSegmentId}
@@ -1260,29 +1579,33 @@ export default function VideoEditorPage() {
             )}
           </TrackShell>
 
-          {/* Audio track, with a live level meter floating to its right
-              (not part of the scrollable/draggable timeline content). */}
-          <div style={{ display: "flex" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <TrackShell label="Audio" icon="🎵" onSplit={handleSplitAudio} splitDisabled={audioBlocks.length === 0}>
-                {audioBlocks.length === 0 ? (
-                  <EmptyTrackHint text="No audio uploaded" />
-                ) : (
-                  <EditBlockRow
-                    blocks={audioBlocks}
-                    dragId={dragAudioId}
-                    onDragStart={setDragAudioId}
-                    onDrop={handleAudioDrop}
-                    onTrim={trimAudioBlock}
-                    // TODO(phase 4b): replace with bars derived from real audio analysis
-                    renderContent={() => <Waveform />}
-                  />
-                )}
-              </TrackShell>
-            </div>
-            <AudioMeter levels={meterLevels} active={!!audioUrl} />
-          </div>
+          {/* Audio track — the level meter now lives in a fixed floating
+              panel on the right side of the screen (see below), not here. */}
+          <TrackShell label="Audio" icon="🎵">
+            {audioBlocks.length === 0 ? (
+              <EmptyTrackHint text="No audio uploaded" />
+            ) : (
+              <EditBlockRow
+                blocks={audioBlocks}
+                dragId={dragAudioId}
+                onDragStart={setDragAudioId}
+                onDrop={handleAudioDrop}
+                onTrim={trimAudioBlock}
+                onContextMenu={(id, e) => handleBlockContextMenu("audio", id, e)}
+                // TODO(phase 4b): derive bar heights from real audio analysis
+                renderContent={() => <Waveform />}
+              />
+            )}
+          </TrackShell>
         </div>
+      </div>
+
+      {/* ---- Level meter: fixed/floating on the right side, not part of
+          the timeline — clearly labeled since it measures the separately-
+          uploaded Audio track specifically (not the video's own sound). ---- */}
+      <div data-level-meter-panel style={{ position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", zIndex: 40, borderRadius: 10, border: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.card, padding: "10px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: "0.03em" }}>AUDIO TRACK</span>
+        <AudioMeter levels={meterLevels} active={!!audioUrl} />
       </div>
 
       {/* ---- Auto Edit overlay: payment -> verification -> simulated AI pass -> result ---- */}
@@ -1334,8 +1657,110 @@ export default function VideoEditorPage() {
           </div>
         </div>
       )}
+
+      {/* ---- Export overlay: real ffmpeg.wasm render -> download ---- */}
+      {exportStage !== "idle" && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, borderRadius: 16, border: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.card, padding: 32 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 20px" }}>&#8681; Export</h2>
+
+            {(exportStage === "loading" || exportStage === "rendering") && (
+              <>
+                <p style={{ marginBottom: 16, fontSize: 14, color: COLORS.textMuted }}>
+                  {exportStageLabel} {exportProgress}%
+                </p>
+                <div style={{ height: 8, width: "100%", overflow: "hidden", borderRadius: 999, backgroundColor: COLORS.cardBorder }}>
+                  <div style={{ height: "100%", borderRadius: 999, width: `${exportProgress}%`, backgroundColor: COLORS.accent, transition: "width 300ms" }} />
+                </div>
+              </>
+            )}
+
+            {exportStage === "done" && exportResultUrl && (
+              <>
+                <p style={{ marginBottom: 16, fontSize: 14, color: COLORS.textMuted }}>Export complete.</p>
+                <video src={exportResultUrl} controls style={{ width: "100%", borderRadius: 6, marginBottom: 16, backgroundColor: "#000" }} />
+                <a
+                  href={exportResultUrl}
+                  download="exported-video.mp4"
+                  style={{ display: "block", textAlign: "center", padding: "10px 0", borderRadius: 8, backgroundColor: COLORS.accent, color: COLORS.accentText, fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 8 }}
+                >
+                  Download MP4
+                </a>
+                <button type="button" onClick={() => setExportStage("idle")} style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: `1px solid ${COLORS.cardBorder}`, background: "transparent", color: COLORS.textPrimary, fontSize: 13, cursor: "pointer" }}>
+                  Close
+                </button>
+              </>
+            )}
+
+            {exportStage === "error" && (
+              <>
+                <p style={{ marginBottom: 20, fontSize: 14, color: COLORS.danger }}>{exportError || "Something went wrong."}</p>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button type="button" onClick={() => setExportStage("idle")} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1px solid ${COLORS.cardBorder}`, background: "transparent", color: COLORS.textPrimary, fontSize: 13, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleExportClick} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", backgroundColor: COLORS.accent, color: COLORS.accentText, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Retry
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Hidden pickers for the context menu's "Replace" action. */}
+      <input ref={replaceVideoInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={closeContextMenu} />
+      <input ref={replaceAudioInputRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={closeContextMenu} />
+
+      {/* ---- Segment context menu ---- */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onReplace={handleMenuReplace}
+          onLock={handleMenuToggleLock}
+          onDuplicate={handleMenuDuplicate}
+          onDelete={handleMenuDelete}
+          onSplit={handleMenuSplit}
+        />
+      )}
     </div>
+    </>
   );
+}
+
+// Converts video blocks + their per-segment edits into export.ts's input
+// shape: each block's fixed sourceStartFrac/sourceEndFrac (reorder-
+// independent) plus its own trimStart/trimEnd narrow the range further,
+// then everything is scaled from fractions to real seconds using the
+// uploaded video's actual duration.
+function buildExportSegments(blocks: EditBlock[], edits: Record<string, SegmentEdit>, videoDuration: number) {
+  return blocks.map((b) => {
+    const span = b.sourceEndFrac - b.sourceStartFrac;
+    const effStartFrac = b.sourceStartFrac + b.trimStart * span;
+    const effEndFrac = b.sourceEndFrac - b.trimEnd * span;
+    return {
+      id: b.id,
+      sourceStart: effStartFrac * videoDuration,
+      sourceEnd: effEndFrac * videoDuration,
+      edit: edits[b.id] ?? DEFAULT_EDIT,
+    };
+  });
+}
+
+// Same conversion for the separately-uploaded audio track's blocks, scaled
+// against that file's own duration (a different number from the video's).
+function buildExportAudioSegments(blocks: EditBlock[], audioFileDuration: number) {
+  return blocks.map((b) => {
+    const span = b.sourceEndFrac - b.sourceStartFrac;
+    const effStartFrac = b.sourceStartFrac + b.trimStart * span;
+    const effEndFrac = b.sourceEndFrac - b.trimEnd * span;
+    return {
+      sourceStart: effStartFrac * audioFileDuration,
+      sourceEnd: effEndFrac * audioFileDuration,
+    };
+  });
 }
 
 function applyTrim(b: EditBlock, id: string, side: "start" | "end", delta: number): EditBlock {
@@ -1359,6 +1784,38 @@ function UploadSlot({ label, sublabel, icon, onClick, filled }: { label: string;
       <span style={{ fontSize: 14, fontWeight: 500 }}>{label}</span>
       <span style={{ fontSize: 12, color: COLORS.textMuted, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sublabel}</span>
     </button>
+  );
+}
+
+// Independent mute-toggle + volume-slider control, used for both "Video
+// sound" and "Audio track" near the transport bar — each instance wired to
+// its own genuinely separate media element (see the two useEffects syncing
+// videoMuted/videoVolume and audioTrackMuted/audioTrackVolume).
+function SoundControl({ label, muted, volume, onToggleMute, onVolumeChange }: { label: string; muted: boolean; volume: number; onToggleMute: () => void; onVolumeChange: (v: number) => void }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <button
+        type="button"
+        onClick={onToggleMute}
+        title={muted ? `Unmute ${label}` : `Mute ${label}`}
+        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, border: `1px solid ${COLORS.cardBorder}`, background: "transparent", color: muted ? COLORS.danger : COLORS.textPrimary, fontSize: 13, cursor: "pointer" }}
+      >
+        {muted ? "🔇" : "🔊"}
+      </button>
+      <div>
+        <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 2 }}>{label}</div>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={volume}
+          onChange={(e) => onVolumeChange(Number(e.target.value))}
+          style={{ width: 72, accentColor: COLORS.accent, verticalAlign: "middle" }}
+          title={`${label} volume`}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -1387,26 +1844,13 @@ function ColorSliderRow({ label, value, onChange }: { label: string; value: numb
   );
 }
 
-function TrackShell({ label, icon, onSplit, splitDisabled, children }: { label: string; icon: string; onSplit?: () => void; splitDisabled?: boolean; children: React.ReactNode }) {
+function TrackShell({ label, icon, children }: { label: string; icon: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.cardBorder}` }}>
-      <div style={{ width: 88, flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4, padding: "4px 10px", backgroundColor: COLORS.trackHeaderBg, borderRight: `1px solid ${COLORS.cardBorder}`, fontSize: 11, color: COLORS.textMuted }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span>&#128274;</span>
-          <span>{icon}</span>
-          <span style={{ fontWeight: 600, color: COLORS.textPrimary }}>{label}</span>
-        </div>
-        {onSplit && (
-          <button
-            type="button"
-            onClick={onSplit}
-            disabled={splitDisabled}
-            title="Split at playhead"
-            style={{ fontSize: 10, border: `1px solid ${COLORS.cardBorder}`, borderRadius: 4, padding: "2px 6px", background: "transparent", color: splitDisabled ? COLORS.textMuted : COLORS.accent, opacity: splitDisabled ? 0.4 : 1, cursor: splitDisabled ? "not-allowed" : "pointer" }}
-          >
-            &#9986; Split
-          </button>
-        )}
+      <div style={{ width: 88, flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "0 10px", backgroundColor: COLORS.trackHeaderBg, borderRight: `1px solid ${COLORS.cardBorder}`, fontSize: 11, color: COLORS.textMuted }}>
+        <span>&#128274;</span>
+        <span>{icon}</span>
+        <span style={{ fontWeight: 600, color: COLORS.textPrimary }}>{label}</span>
       </div>
       <div style={{ flex: 1, backgroundColor: COLORS.trackRowBg, padding: "0 4px" }}>{children}</div>
     </div>
@@ -1419,12 +1863,107 @@ function EmptyTrackHint({ text }: { text: string }) {
   );
 }
 
+// Floating right-click menu for a Video/Audio timeline segment. Positioned
+// at the click coordinates; the page-level click/Escape listeners (see
+// closeContextMenu's useEffect) handle dismissal, so this component only
+// needs to stop its own clicks from immediately re-triggering that same
+// window-level "click closes the menu" handler.
+function ContextMenu({
+  x,
+  y,
+  onReplace,
+  onLock,
+  onDuplicate,
+  onDelete,
+  onSplit,
+}: {
+  x: number;
+  y: number;
+  onReplace: () => void;
+  onLock: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onSplit: () => void;
+}) {
+  const handlers: Record<string, () => void> = {
+    replace: onReplace,
+    lock: onLock,
+    duplicate: onDuplicate,
+    delete: onDelete,
+    split: onSplit,
+  };
+  const MENU_WIDTH = 160;
+  const ITEM_HEIGHT = 34;
+  const estimatedHeight = CONTEXT_MENU_ITEMS.length * ITEM_HEIGHT + 8;
+  // Right-clicking near the bottom or right edge of the viewport (e.g. a
+  // segment late in the timeline, which sits near the bottom of the page)
+  // would otherwise position the menu partly or fully off-screen — flip to
+  // open upward/leftward from the click point instead when there isn't
+  // room to grow down/right.
+  const openUpward = typeof window !== "undefined" && y + estimatedHeight > window.innerHeight;
+  const openLeftward = typeof window !== "undefined" && x + MENU_WIDTH > window.innerWidth;
+  return (
+    <div
+      data-segment-context-menu
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{
+        position: "fixed",
+        left: openLeftward ? undefined : x,
+        right: openLeftward ? window.innerWidth - x : undefined,
+        top: openUpward ? undefined : y,
+        bottom: openUpward ? window.innerHeight - y : undefined,
+        zIndex: 60,
+        width: MENU_WIDTH,
+        borderRadius: 8,
+        border: `1px solid ${COLORS.cardBorder}`,
+        backgroundColor: COLORS.card,
+        padding: 4,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+      }}
+    >
+      {CONTEXT_MENU_ITEMS.map((item) => {
+        const disabled = item.id === "keyframe";
+        return (
+          <button
+            key={item.id}
+            type="button"
+            disabled={disabled}
+            onClick={disabled ? undefined : handlers[item.id]}
+            title={disabled ? "Coming soon" : undefined}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 6,
+              border: "none",
+              background: "transparent",
+              color: item.id === "delete" ? COLORS.danger : disabled ? COLORS.textMuted : COLORS.textPrimary,
+              fontSize: 12,
+              textAlign: "left",
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.5 : 1,
+            }}
+          >
+            <span style={{ fontSize: 12, width: 16, textAlign: "center" }}>{item.icon}</span>
+            {item.label}
+            {disabled && <span style={{ marginLeft: "auto", fontSize: 9, color: COLORS.textMuted }}>Coming soon</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function EditBlockRow({
   blocks,
   dragId,
   onDragStart,
   onDrop,
   onTrim,
+  onContextMenu,
   renderContent,
   selectedId,
   onSelect,
@@ -1435,6 +1974,7 @@ function EditBlockRow({
   onDragStart: (id: string) => void;
   onDrop: (targetId: string) => void;
   onTrim: (id: string, side: "start" | "end", delta: number) => void;
+  onContextMenu?: (id: string, e: React.MouseEvent) => void;
   renderContent: (block: EditBlock) => React.ReactNode;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
@@ -1445,14 +1985,15 @@ function EditBlockRow({
       {blocks.map((b) => (
         <div
           key={b.id}
-          draggable
-          onDragStart={() => onDragStart(b.id)}
+          draggable={!b.locked}
+          onDragStart={() => !b.locked && onDragStart(b.id)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.stopPropagation();
-            onDrop(b.id);
+            if (!b.locked) onDrop(b.id);
           }}
           onClick={() => onSelect?.(b.id)}
+          onContextMenu={(e) => onContextMenu?.(b.id, e)}
           style={{
             position: "relative",
             flexGrow: b.widthFrac,
@@ -1465,7 +2006,7 @@ function EditBlockRow({
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
-            cursor: "grab",
+            cursor: b.locked ? "not-allowed" : "grab",
             color: COLORS.accentText,
             fontSize: 11,
             fontWeight: 600,
@@ -1473,13 +2014,16 @@ function EditBlockRow({
             outline: selectedId === b.id ? `2px solid ${COLORS.textPrimary}` : "none",
             outlineOffset: -2,
           }}
-          title={onSelect ? "Click to select, drag to reorder" : "Drag to reorder"}
+          title={b.locked ? "Locked — right-click for options" : onSelect ? "Click to select, drag to reorder, right-click for options" : "Drag to reorder, right-click for options"}
         >
-          <TrimHandle side="left" onDrag={(d) => onTrim(b.id, "start", d)} />
+          {!b.locked && <TrimHandle side="left" onDrag={(d) => onTrim(b.id, "start", d)} />}
           {renderContent(b)}
-          <TrimHandle side="right" onDrag={(d) => onTrim(b.id, "end", d)} />
+          {!b.locked && <TrimHandle side="right" onDrag={(d) => onTrim(b.id, "end", d)} />}
           {isEdited?.(b.id) && (
             <div title="Has crop/rotate/speed edits" style={{ position: "absolute", top: 3, right: 3, width: 7, height: 7, borderRadius: "50%", backgroundColor: COLORS.editedDot, border: `1px solid ${COLORS.accentText}` }} />
+          )}
+          {b.locked && (
+            <div title="Locked" style={{ position: "absolute", top: 3, left: 3, fontSize: 9 }}>&#128274;</div>
           )}
         </div>
       ))}
@@ -1560,10 +2104,20 @@ function TextEdgeHandle({ side, onDrag }: { side: "left" | "right"; onDrag: (del
 // decoded-audio analysis (this is separate from the live level meter below,
 // which already reflects real-time amplitude while the track plays).
 function Waveform() {
+  // Fixed-width, fixed-count bars with overflow:hidden on the container —
+  // NOT flex:1 (the previous approach), which stretched/squished bars to
+  // fill whatever width a given block happened to have after a Split,
+  // producing the reported broken/overlapping-black-rectangle look at
+  // narrow widths. A generous fixed bar count (clipped by overflow:hidden
+  // at narrower widths) keeps bar width/spacing constant and correct
+  // regardless of the segment's own pixel width, with no measurement
+  // needed. Color is a translucent light tone (not near-black) so it reads
+  // as a waveform against the orange block background, not solid rectangles.
+  const barCount = 120;
   return (
-    <div style={{ display: "flex", alignItems: "center", height: "100%", width: "100%", gap: 1, padding: "0 4px", pointerEvents: "none" }}>
-      {Array.from({ length: 24 }).map((_, i) => (
-        <div key={i} style={{ flex: 1, height: `${20 + Math.abs(Math.sin(i * 0.6)) * 16}px`, backgroundColor: COLORS.panelBgDark, borderRadius: 1 }} />
+    <div style={{ display: "flex", alignItems: "center", height: "100%", width: "100%", gap: 1, padding: "0 4px", overflow: "hidden", pointerEvents: "none" }}>
+      {Array.from({ length: barCount }).map((_, i) => (
+        <div key={i} style={{ flexShrink: 0, width: 2, height: `${18 + Math.abs(Math.sin(i * 0.45)) * 22}%`, backgroundColor: "rgba(245, 241, 234, 0.55)", borderRadius: 1 }} />
       ))}
     </div>
   );
@@ -1574,11 +2128,12 @@ function Waveform() {
 // `levels` are pre-normalized 0-1 values, one per bar. When no audio has
 // been uploaded (`active` false), bars sit dimmed at their minimum height
 // rather than being hidden — so the meter always has a clear, non-erroring
-// idle state.
+// idle state. Lives in a fixed floating panel on the right side of the
+// screen (see the render call site), not inside the timeline.
 function AudioMeter({ levels, active }: { levels: number[]; active: boolean }) {
   return (
-    <div data-audio-meter style={{ width: 64, flexShrink: 0, alignSelf: "stretch", backgroundColor: COLORS.trackHeaderBg, borderLeft: `1px solid ${COLORS.cardBorder}`, borderBottom: `1px solid ${COLORS.cardBorder}` }}>
-      <div style={{ height: "100%", boxSizing: "border-box", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 3, padding: "8px 6px" }}>
+    <div data-audio-meter style={{ width: 40, height: 100, flexShrink: 0 }}>
+      <div style={{ height: "100%", boxSizing: "border-box", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 3 }}>
         {levels.map((lvl, i) => {
           const heightPct = Math.max(10, Math.min(100, lvl * 100));
           return (
