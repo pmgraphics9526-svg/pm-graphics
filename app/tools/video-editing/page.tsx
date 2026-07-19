@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Manual Video Editor — /dev-tools/video-editor
+ * Manual Video Editor — /tools/video-editing
  *
  * PHASE 1: media upload, a two-track (Video + Audio) timeline, and cut/trim
  * functionality.
@@ -1067,10 +1067,10 @@ export default function VideoEditorPage() {
     <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", backgroundColor: COLORS.bg, color: COLORS.textPrimary, overflow: "hidden" }}>
       {/* ---- Top bar ---- */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.trackHeaderBg, flexShrink: 0 }}>
-        <Link href="/dev-tools" style={{ color: COLORS.textMuted, fontSize: 18, textDecoration: "none" }} title="Back">
+        <Link href="/tools" style={{ color: COLORS.textMuted, fontSize: 18, textDecoration: "none" }} title="Back">
           &#8592;
         </Link>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>My Project</span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>Video Editing</span>
         {/* TODO(phase 5): wire real undo/redo history stack */}
         <div style={{ display: "flex", gap: 4, marginLeft: 12 }}>
           <button type="button" disabled title="Undo (coming soon)" style={disabledIconStyle}>&#8630;</button>

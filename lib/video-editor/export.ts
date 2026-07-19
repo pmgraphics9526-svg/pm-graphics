@@ -1,7 +1,7 @@
 // lib/video-editor/export.ts
 //
 // Real ffmpeg.wasm export pipeline for the Manual Video Editor
-// (/dev-tools/video-editor). Renders every edit currently held in that
+// (/tools/video-editing). Renders every edit currently held in that
 // page's state — Phase 1 split/trim, Phase 2 crop/rotate/flip/speed,
 // Phase 3 text overlays, Phase 4 color grading, and the Phase 1 separately-
 // uploaded audio track — into one downloadable MP4.
