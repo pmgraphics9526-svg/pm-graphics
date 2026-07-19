@@ -48,12 +48,12 @@ const nextConfig = {
     
     const cspHeader = `
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''} https://va.vercel-scripts.com https://www.google.com https://www.gstatic.com blob:;
+      script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''} https://va.vercel-scripts.com https://www.google.com https://www.gstatic.com https://checkout.razorpay.com https://cdn.razorpay.com blob:;
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: blob: https://dl.airtable.com https://*.airtableusercontent.com https://storage.googleapis.com;
       font-src 'self' data:;
-      connect-src 'self' https://vitals.vercel-analytics.com https://www.google.com;
-      frame-src 'self' https://www.google.com;
+      connect-src 'self' https://vitals.vercel-analytics.com https://www.google.com https://api.razorpay.com https://lumberjack.razorpay.com;
+      frame-src 'self' https://www.google.com https://api.razorpay.com;
       media-src 'self' blob: data: https://dl.airtable.com https://*.airtableusercontent.com https://storage.googleapis.com;
       worker-src 'self' blob:;
       object-src 'none';
