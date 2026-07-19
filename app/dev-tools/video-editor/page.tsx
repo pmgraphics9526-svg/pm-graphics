@@ -1113,7 +1113,7 @@ export default function VideoEditorPage() {
       {/* ---- Middle: sidebar + preview + right panel ---- */}
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* Left sidebar */}
-        <div style={{ width: 72, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "16px 0", backgroundColor: COLORS.trackHeaderBg, borderRight: `1px solid ${COLORS.cardBorder}` }}>
+        <div style={{ width: 86, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "16px 0", backgroundColor: COLORS.trackHeaderBg, borderRight: `1px solid ${COLORS.cardBorder}` }}>
           {TOOLS.map((tool) => (
             <button
               key={tool.id}
@@ -1144,7 +1144,7 @@ export default function VideoEditorPage() {
         </div>
 
         {/* Center: preview player */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: COLORS.panelBgDark }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 0", backgroundColor: COLORS.panelBgDark }}>
           <div
             ref={previewContainerRef}
             style={{ position: "relative", aspectRatio: ASPECT_CSS[aspectRatio], maxHeight: "100%", maxWidth: "100%", width: aspectRatio === "9:16" ? "auto" : "100%", height: aspectRatio === "9:16" ? "100%" : "auto", border: `1px solid ${COLORS.cardBorder}`, borderRadius: 6, overflow: "hidden", backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -1251,22 +1251,20 @@ export default function VideoEditorPage() {
             ))}
           </div>
 
-          {/* Transport bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 16 }}>
+          {/* Transport bar + quick-adjustment row: prev/play/next/time,
+              Crop/Rotate/Speed compact icons (each opens a popover with its
+              unchanged controls), and independent Video-sound / Audio-track
+              mute+volume controls — all on one row, flush under the preview. */}
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 16, paddingTop: 12 }}>
             <button type="button" onClick={handlePrevFrame} title="Previous frame" style={transportBtnStyle}>&#9198;</button>
             <button type="button" onClick={handlePlayPause} title={isPlaying ? "Pause" : "Play"} style={{ ...transportBtnStyle, color: COLORS.textPrimary, fontSize: 20 }}>
               {isPlaying ? "⏸" : "▶"}
             </button>
             <button type="button" onClick={handleNextFrame} title="Next frame" style={transportBtnStyle}>&#9197;</button>
-            <span style={{ fontSize: 12, color: COLORS.textMuted, fontVariantNumeric: "tabular-nums", marginLeft: 8 }}>
+            <span style={{ fontSize: 12, color: COLORS.textMuted, fontVariantNumeric: "tabular-nums" }}>
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
-          </div>
 
-          {/* Quick-adjustment row: Crop/Rotate/Speed compact icons (each
-              opens a popover with its unchanged controls) + independent
-              Video-sound / Audio-track mute+volume controls. */}
-          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 16, marginTop: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {QUICK_TOOLS.map((tool) => (
                 <div key={tool.id} style={{ position: "relative" }}>
@@ -1485,7 +1483,7 @@ export default function VideoEditorPage() {
       </div>
 
       {/* ---- Timeline ---- */}
-      <div style={{ flexShrink: 0, borderTop: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.panelBg }}>
+      <div style={{ position: "relative", flexShrink: 0, borderTop: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.panelBg }}>
         <div ref={timelineRef} style={{ position: "relative" }}>
           {/* Playhead line */}
           <div
@@ -1598,14 +1596,20 @@ export default function VideoEditorPage() {
             )}
           </TrackShell>
         </div>
-      </div>
 
-      {/* ---- Level meter: fixed/floating on the right side, not part of
-          the timeline — clearly labeled since it measures the separately-
-          uploaded Audio track specifically (not the video's own sound). ---- */}
-      <div data-level-meter-panel style={{ position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", zIndex: 40, borderRadius: 10, border: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.card, padding: "10px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: "0.03em" }}>AUDIO TRACK</span>
-        <AudioMeter levels={meterLevels} active={!!audioUrl} />
+        {/* ---- Level meter: floating on the right side of the timeline,
+            not part of any track row — clearly labeled since it measures
+            the separately-uploaded Audio track specifically (not the
+            video's own sound). Positioned `absolute` inside this
+            `position: relative` timeline wrapper (rather than `fixed`
+            against the raw viewport) so its right edge is always tied to
+            the timeline's own box — which already matches the width of
+            the rest of the page — instead of an independent viewport-
+            relative calculation that could drift out of sync with it. ---- */}
+        <div data-level-meter-panel style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", zIndex: 40, borderRadius: 10, border: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.card, padding: "10px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 9, fontWeight: 600, color: COLORS.textMuted, letterSpacing: "0.03em" }}>AUDIO TRACK</span>
+          <AudioMeter levels={meterLevels} active={!!audioUrl} />
+        </div>
       </div>
 
       {/* ---- Auto Edit overlay: payment -> verification -> simulated AI pass -> result ---- */}
