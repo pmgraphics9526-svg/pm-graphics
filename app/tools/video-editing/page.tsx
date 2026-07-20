@@ -480,6 +480,14 @@ export default function VideoEditorPage() {
   const handleAudioPlay = () => startMeterLoop();
   const handleAudioPause = () => stopMeterLoop();
   const handleAudioEnded = () => stopMeterLoop();
+  // The separately-uploaded audio track has no length limit tied to the
+  // video, so when it's longer than the video, it would otherwise keep
+  // playing after the video stops. Clamp it to the video's own duration —
+  // whichever media is shorter wins.
+  const handleVideoEnded = () => {
+    const a = audioElRef.current;
+    if (a && !a.paused) a.pause();
+  };
 
   // ---- Transport controls ----
   const FRAME_SEC = 1 / 30;
@@ -1162,6 +1170,7 @@ export default function VideoEditorPage() {
                 }}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
+                onEnded={handleVideoEnded}
                 onTimeUpdate={handleTimeUpdate}
                 onSeeked={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
@@ -1485,15 +1494,22 @@ export default function VideoEditorPage() {
       {/* ---- Timeline ---- */}
       <div style={{ position: "relative", flexShrink: 0, borderTop: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.panelBg }}>
         <div ref={timelineRef} style={{ position: "relative" }}>
-          {/* Playhead line */}
+          {/* Playhead line. The right edge of its travel range is inset by
+              110px — matching the same reservation given to the ruler and
+              every track row below — so it stays aligned with the actual
+              (narrowed) block content instead of the full timeline width. */}
           <div
-            style={{ position: "absolute", left: `calc(88px + ${playheadFrac} * (100% - 88px))`, top: 0, bottom: 0, width: 2, backgroundColor: COLORS.accent, pointerEvents: "none", zIndex: 2 }}
+            style={{ position: "absolute", left: `calc(88px + ${playheadFrac} * (100% - 198px))`, top: 0, bottom: 0, width: 2, backgroundColor: COLORS.accent, pointerEvents: "none", zIndex: 2 }}
           />
 
-          {/* Ruler (click/drag to seek) */}
+          {/* Ruler (click/drag to seek). paddingRight reserves space for the
+              floating AUDIO TRACK meter (see below) so its ticks — and, more
+              importantly, every track row's blocks — never render underneath
+              that meter, which sits at a fixed `right: 16` within this same
+              timeline wrapper regardless of how many blocks exist. */}
           <div
             onPointerDown={handleTimelinePointerDown}
-            style={{ display: "flex", paddingLeft: 88, height: 24, alignItems: "flex-end", borderBottom: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.trackHeaderBg, cursor: "pointer" }}
+            style={{ display: "flex", paddingLeft: 88, paddingRight: 110, height: 24, alignItems: "flex-end", borderBottom: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.trackHeaderBg, cursor: "pointer" }}
           >
             {["00:00", "00:04", "00:08", "00:12", "00:16", "00:20"].map((t) => (
               <span key={t} style={{ flex: 1, fontSize: 10, color: COLORS.textMuted, borderLeft: `1px solid ${COLORS.ruler}`, paddingLeft: 4 }}>
@@ -1856,7 +1872,13 @@ function TrackShell({ label, icon, children }: { label: string; icon: string; ch
         <span>{icon}</span>
         <span style={{ fontWeight: 600, color: COLORS.textPrimary }}>{label}</span>
       </div>
-      <div style={{ flex: 1, backgroundColor: COLORS.trackRowBg, padding: "0 4px" }}>{children}</div>
+      {/* paddingRight reserves room for the floating AUDIO TRACK meter
+          (fixed at `right: 16` within the timeline wrapper) so blocks never
+          render underneath it — previously the last block on any row was
+          visually cut off behind the meter once there was more than one
+          block, or once the meter was more than a sliver of the row's width
+          at narrower viewport sizes. */}
+      <div style={{ flex: 1, backgroundColor: COLORS.trackRowBg, padding: "0 4px", paddingRight: 110 }}>{children}</div>
     </div>
   );
 }
