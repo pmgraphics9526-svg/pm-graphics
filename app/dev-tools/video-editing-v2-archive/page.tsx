@@ -17,26 +17,6 @@
  * model, since overlay items need explicit start/end seconds + x/y/width/
  * height placement, same as text.
  *
- * PLAYBACK: `currentTime` is a MASTER TIMELINE position — seconds along the
- * whole Video track (sum of every clip's trimmed length, in order), not
- * seconds into whichever file happens to be loaded. A single <video> element
- * is reused for every clip; its `src` swaps to the next clip when the master
- * playhead crosses a clip boundary, with a pending-seek+resume-play
- * handshake through onLoadedMetadata so the swap lands at the right local
- * offset (see resolveClipRange/getClipAtMasterTime/cumulativeStart and the
- * handlePlayPause/handleTimeUpdate/handleLoadedMetadata/seekAtClientX
- * cluster below). A `suppressMasterSync` ref distinguishes "this clip just
- * loaded because playback/scrub legitimately moved there" from "this clip
- * loaded because the user clicked it to edit its crop/rotate/color" — only
- * the former updates the master `currentTime`, so opening a clip's edit
- * popovers never disturbs where Play will resume from. Ruler click/drag
- * (seekAtClientX) maps client-x to a master-timeline fraction using the same
- * 88px-left/110px-right content-area inset the playhead's own render
- * position uses, and routes the drag's pointermove listener through a ref
- * re-synced every render (not the pointerdown-time closure) so seeking
- * stays accurate even when a single drag gesture crosses a clip boundary.
- * Text/Overlay/Music timing is master-timeline-relative seconds throughout.
- *
  * EXPORT: renders the full layered state (Video/Overlay/Text/Music, every
  * per-clip crop/rotate/speed/color edit) to a real MP4 via ffmpeg.wasm — see
  * lib/video-editor/export-v2.ts for the render pipeline itself; this file
@@ -44,12 +24,8 @@
  * modal (handleExportClick, below). Auto Edit is left as-is (deprioritized),
  * pointed at whichever video clip is currently selected/previewed.
  *
- * Prior versions are archived, unlinked, safety copies only:
- *   app/dev-tools/video-editing-v1-archive/page.tsx — original single-track
- *     editor.
- *   app/dev-tools/video-editing-v2-archive/page.tsx — layered tracks, but
- *     Play only ever played whichever single clip was selected, no
- *     continuous multi-clip playback across the Video track.
+ * The prior single-track editor is archived, unlinked, at
+ * app/dev-tools/video-editing-v1-archive/page.tsx (safety backup only).
  *
  * STYLING: inline `style` props only — this project has no Tailwind
  * installed. COLORS token object shared with auto-edit.
@@ -320,23 +296,14 @@ function effectiveDuration(clip: ClipBase): number {
 // duration (spread from the original) — only their sourceStartFrac/
 // sourceEndFrac/trimStart/trimEnd/widthFrac/id differ, exactly like v1's
 // single-shared-file split, just now per-clip instead of per-track.
-//
-// `playheadFrac` here is a fraction of this TRACK's own total EFFECTIVE
-// (trimmed) duration -- matching what the master-timeline playhead now
-// naturally produces (currentTime / videoTrackDuration, or / musicTrackDuration
-// for the Music track). Cursor math uses effectiveDuration, not raw
-// widthFrac, so the two stay consistent: previously this compared a
-// clip-LOCAL playhead fraction against TRACK-wide cStart/cEnd boundaries,
-// which only ever coincidentally worked for a single-clip track.
 function splitClipsAt<T extends ClipBase>(clips: T[], playheadFrac: number, prefix: string): T[] {
-  const total = clips.reduce((s, c) => s + effectiveDuration(c), 0);
+  const total = clips.reduce((s, c) => s + c.widthFrac, 0);
   if (total <= 0) return clips;
   let cursor = 0;
   for (let i = 0; i < clips.length; i += 1) {
     const c = clips[i];
-    const dur = effectiveDuration(c);
     const cStart = cursor / total;
-    const cEnd = (cursor + dur) / total;
+    const cEnd = (cursor + c.widthFrac) / total;
     if (!c.locked && playheadFrac > cStart + 0.01 && playheadFrac < cEnd - 0.01) {
       const localF = (playheadFrac - cStart) / (cEnd - cStart);
       const splitSourceFrac = c.sourceStartFrac + localF * (c.sourceEndFrac - c.sourceStartFrac);
@@ -346,60 +313,9 @@ function splitClipsAt<T extends ClipBase>(clips: T[], playheadFrac: number, pref
       next.splice(i, 1, left, right);
       return next;
     }
-    cursor += dur;
+    cursor += c.widthFrac;
   }
   return clips;
-}
-
-// ---- MASTER TIMELINE PLAYBACK — turns "N separate clip files" into
-// one continuous seekable timeline for the Video track. See the top-of-file
-// doc comment for the overall approach. ----
-
-/** This clip's own playable [start, end) in seconds within ITS OWN file --
- * i.e. what `previewVideoRef.current.currentTime` should be bounded to
- * while this clip is loaded. Mirrors resolveSourceRange in
- * lib/video-editor/export-v2.ts exactly (same trim math), kept as a
- * separate local copy since this file uses its own ClipBase type. */
-function resolveClipRange(clip: ClipBase): { playStart: number; playEnd: number } {
-  const rawStart = clip.sourceStartFrac * clip.duration;
-  const rawEnd = clip.sourceEndFrac * clip.duration;
-  const rawSpan = Math.max(0, rawEnd - rawStart);
-  const playStart = Math.max(0, rawStart + clip.trimStart * rawSpan);
-  const playEnd = Math.max(playStart + 0.01, rawEnd - clip.trimEnd * rawSpan);
-  return { playStart, playEnd };
-}
-
-/** Seconds into the Video track's OWN total (sum of effectiveDuration, in
- * array order) at which `clipId` begins. Returns 0 if not found. */
-function cumulativeStart(clips: VideoClip[], clipId: string): number {
-  let cursor = 0;
-  for (const c of clips) {
-    if (c.id === clipId) return cursor;
-    cursor += effectiveDuration(c);
-  }
-  return 0;
-}
-
-/** Master-time -> which clip is playing at that instant, and the exact
- * `video.currentTime` (in THAT clip's own file) it corresponds to. Clamps
- * to the last clip if masterTime overshoots the track's total (e.g. a
- * scrub target computed against `timelineDuration`, which can exceed the
- * Video track's own length whenever the Music track is longer). */
-function getClipAtMasterTime(clips: VideoClip[], masterTime: number): { clip: VideoClip; localTime: number; clipStartInMaster: number; clipEndInMaster: number } | null {
-  if (clips.length === 0) return null;
-  let cursor = 0;
-  for (let i = 0; i < clips.length; i += 1) {
-    const c = clips[i];
-    const dur = effectiveDuration(c);
-    const isLast = i === clips.length - 1;
-    if (masterTime < cursor + dur - 1e-6 || isLast) {
-      const { playStart } = resolveClipRange(c);
-      const localWithinEffective = Math.max(0, Math.min(dur, masterTime - cursor));
-      return { clip: c, localTime: playStart + localWithinEffective, clipStartInMaster: cursor, clipEndInMaster: cursor + dur };
-    }
-    cursor += dur;
-  }
-  return null;
 }
 
 function applyTrim<T extends ClipBase>(clip: T, id: string, side: "start" | "end", delta: number): T {
@@ -477,16 +393,11 @@ export default function VideoEditorV2Page() {
   const [exportResultUrl, setExportResultUrl] = useState<string | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  // `currentTime` is the MASTER TIMELINE position (seconds across the whole
-  // Video track), not "seconds into whichever file is loaded" --
-  // see the top-of-file doc comment. `duration` stays clip-local (the
-  // currently-LOADED clip's own native file duration): it only feeds
-  // handlePrevFrame/handleNextFrame's own bounds and onLoadedMetadata,
-  // never anything the user reads as a "total length".
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [videoWidth, setVideoWidth] = useState(0);
   const [videoHeight, setVideoHeight] = useState(0);
+  const [playheadFrac, setPlayheadFrac] = useState(0);
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
@@ -513,45 +424,11 @@ export default function VideoEditorV2Page() {
   const textDraggedRef = useRef(false);
   const overlayDraggedRef = useRef(false);
 
-  // ---- Master-timeline playback refs ----
-  // `selectedSegmentId` still drives which clip's file is loaded into the
-  // single <video> element AND which clip's edits show in the Crop/Rotate/
-  // Color popovers (unchanged from before) -- but it now changes for TWO
-  // different reasons: (a) legitimate master-timeline playback/scrub moving
-  // to a new clip, or (b) the user just clicking a clip to edit it. Only
-  // (a) should update the master `currentTime`. These refs are how the
-  // onLoadedMetadata/onTimeUpdate handlers (which can't tell the two apart
-  // from the event alone) know which case they're in.
-  //
-  // nextLoadIsPlaybackRef: set true immediately before a playback/scrub-
-  // triggered setSelectedSegmentId call; an effect keyed on `videoUrl`
-  // reads-and-clears it to decide whether the resulting load should sync
-  // masterTime (true) or be treated as an edit-preview load (false).
-  const nextLoadIsPlaybackRef = useRef(false);
-  // suppressMasterSyncRef: true while the currently-loaded clip is showing
-  // for EDIT purposes only -- handleTimeUpdate must not let that clip's own
-  // (usually 0) starting position overwrite the real master `currentTime`.
-  const suppressMasterSyncRef = useRef(false);
-  // pendingSeekSecRef: local seconds (within the NEWLY loading clip's own
-  // file) to seek to once onLoadedMetadata fires -- you can't reliably set
-  // `.currentTime` on a <video> until its metadata has loaded for the new src.
-  const pendingSeekSecRef = useRef<number | null>(null);
-  // resumePlayingRef: whether to auto-.play() once pendingSeekSecRef's seek
-  // has been applied (used for both "scrub while playing" and "auto-advance
-  // to the next clip").
-  const resumePlayingRef = useRef(false);
-  // transitioningRef: guards against handleTimeUpdate firing the "advance
-  // to next clip" branch more than once for the same boundary crossing --
-  // several timeupdate ticks can land past playEnd before the src swap
-  // (triggered by the first one) actually takes effect.
-  const transitioningRef = useRef(false);
-
   // ---- Derived "active" clip for each single-file-shaped track (the
   // preview shows/plays the SELECTED clip; clicking a block in the
-  // timeline selects it, same click-to-select gesture used to drive the
-  // Crop/Rotate/Speed popovers). The Video track's clip switches between
-  // multiple clips both for editing-selection AND for master-timeline
-  // playback -- see the refs above. ----
+  // timeline selects it, same click-to-select gesture v1 used to drive the
+  // Crop/Rotate/Speed popovers). See the top-of-file note: seamless
+  // auto-advance playback across multiple video clips is deferred. ----
   const activeVideoClip = videoClips.find((c) => c.id === selectedSegmentId) ?? videoClips[0] ?? null;
   const videoUrl = activeVideoClip?.url ?? null;
   const activeMusicClip = musicClips.find((c) => c.id === selectedMusicId) ?? musicClips[0] ?? null;
@@ -569,15 +446,13 @@ export default function VideoEditorV2Page() {
   // currently-selected clip's own native duration. Falls back to a fixed
   // 20s span when nothing has been uploaded yet, purely so the empty
   // timeline still shows a reasonable ruler instead of collapsing to 0.
-  // `currentTime` (the master playhead) tracks this same scale, kept in
-  // sync across clip boundaries by the playback handlers below. ----
+  // NOTE: the playhead's own position (playheadFrac) still tracks the
+  // SELECTED clip's own progress, not this master duration — see the
+  // "preview playback is per-selected-clip" limitation already flagged in
+  // the last report; unifying that is a bigger change than this pass. ----
   const videoTrackDuration = videoClips.reduce((s, c) => s + effectiveDuration(c), 0);
   const musicTrackDuration = musicClips.reduce((s, c) => s + effectiveDuration(c), 0);
   const timelineDuration = Math.max(videoTrackDuration, musicTrackDuration) || 20;
-  // Ruler's visual playhead line position -- fraction of the SHARED ruler
-  // scale (timelineDuration), derived rather than separately-tracked state
-  // so it can never drift out of sync with `currentTime`.
-  const playheadFrac = timelineDuration > 0 ? currentTime / timelineDuration : 0;
 
   // ---- Keep selection valid whenever the underlying array changes (clip
   // removed, or first clip added) ----
@@ -684,33 +559,9 @@ export default function VideoEditorV2Page() {
   const handleMusicPlay = () => startMeterLoop();
   const handleMusicPause = () => stopMeterLoop();
   const handleMusicEnded = () => stopMeterLoop();
-
-  // ---- Master-timeline transport ----
-  // Moves playback from the current clip to the next one in `videoClips`
-  // order, seeking to the new clip's own trimmed start once it's loaded and
-  // (if we were playing) resuming automatically. No-ops past the last clip
-  // -- the video simply stays paused/ended there, matching "brief hitch on
-  // swap is acceptable, full seamless crossfade is NOT required" from spec.
-  const advanceToNextClip = () => {
-    if (!activeVideoClip) return;
-    const idx = videoClips.findIndex((c) => c.id === activeVideoClip.id);
-    const next = videoClips[idx + 1];
-    if (!next) return;
-    const { playStart } = resolveClipRange(next);
-    transitioningRef.current = true;
-    nextLoadIsPlaybackRef.current = true;
-    pendingSeekSecRef.current = playStart;
-    resumePlayingRef.current = true;
-    setSelectedSegmentId(next.id);
-  };
   const handleVideoEnded = () => {
     const a = musicElRef.current;
     if (a && !a.paused) a.pause();
-    // Fallback alongside handleTimeUpdate's own boundary check below --
-    // onEnded is the one guaranteed native signal for clips that play all
-    // the way to their raw file's own end (sourceEndFrac=1, trimEnd=0),
-    // which the timeupdate-based check can occasionally race past.
-    if (!transitioningRef.current) advanceToNextClip();
   };
 
   // ---- Transport controls ----
@@ -720,21 +571,7 @@ export default function VideoEditorV2Page() {
     if (!v) return;
     if (v.paused) {
       ensureAudioGraph();
-      // Resuming: the loaded clip might not match the saved master
-      // position if the user clicked a different clip purely to edit it
-      // in the meantime (that never touches `currentTime`) -- reload the
-      // right clip+offset first rather than resuming from wherever the
-      // edit-preview happened to leave the <video> element.
-      const target = getClipAtMasterTime(videoClips, currentTime);
-      if (target && activeVideoClip && target.clip.id !== activeVideoClip.id) {
-        nextLoadIsPlaybackRef.current = true;
-        pendingSeekSecRef.current = target.localTime;
-        resumePlayingRef.current = true;
-        setSelectedSegmentId(target.clip.id);
-      } else {
-        suppressMasterSyncRef.current = false;
-        v.play();
-      }
+      v.play();
       musicElRef.current?.play().catch(() => {});
     } else {
       v.pause();
@@ -751,110 +588,32 @@ export default function VideoEditorV2Page() {
   };
   const handleTimeUpdate = () => {
     const v = previewVideoRef.current;
-    if (!v || !activeVideoClip) return;
-    if (suppressMasterSyncRef.current) {
-      // This clip is loaded purely for edit-preview (crop/rotate/color) --
-      // its own (usually 0) starting position must not overwrite the real
-      // master playhead the user will resume playback from.
-      return;
-    }
-    const { playStart, playEnd } = resolveClipRange(activeVideoClip);
-    const clipStart = cumulativeStart(videoClips, activeVideoClip.id);
-    const masterTime = clipStart + Math.max(0, v.currentTime - playStart);
-    setCurrentTime(Math.min(videoTrackDuration, Math.max(0, masterTime)));
-    if (!v.paused && !transitioningRef.current && v.currentTime >= playEnd - 0.05) {
-      transitioningRef.current = true;
-      advanceToNextClip();
-    }
+    if (!v) return;
+    setCurrentTime(v.currentTime);
+    if (v.duration) setPlayheadFrac(v.currentTime / v.duration);
   };
   const handleLoadedMetadata = () => {
     const v = previewVideoRef.current;
-    if (!v) return;
-    setDuration(v.duration);
-    setVideoWidth(v.videoWidth);
-    setVideoHeight(v.videoHeight);
-    if (pendingSeekSecRef.current !== null) {
-      const seekTo = pendingSeekSecRef.current;
-      pendingSeekSecRef.current = null;
-      v.currentTime = seekTo;
-      transitioningRef.current = false;
-      if (resumePlayingRef.current) {
-        resumePlayingRef.current = false;
-        v.play().catch(() => {});
-      }
+    if (v) {
+      setDuration(v.duration);
+      setVideoWidth(v.videoWidth);
+      setVideoHeight(v.videoHeight);
     }
   };
-  // A clip load is either a legitimate master-timeline transition (Play's
-  // resume check, auto-advance, or a ruler scrub -- all of which set
-  // nextLoadIsPlaybackRef right before changing selectedSegmentId) or a
-  // plain click-to-edit selection. This effect is what actually reads that
-  // ref and arms/disarms suppressMasterSyncRef for whichever one just
-  // happened, before the browser's own video-load events can fire.
-  useEffect(() => {
-    if (nextLoadIsPlaybackRef.current) {
-      nextLoadIsPlaybackRef.current = false;
-      suppressMasterSyncRef.current = false;
-    } else {
-      suppressMasterSyncRef.current = true;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoUrl]);
 
   // ---- Playhead seek (click or drag on the timeline ruler) ----
-  // Scrubbing targets the MASTER timeline, not the loaded clip's own
-  // duration -- resolves which clip the target instant falls inside,
-  // updates `currentTime` immediately for instant ruler feedback, then
-  // either seeks in place (same clip already loaded) or swaps to the right
-  // clip+offset (matching advanceToNextClip's own load pattern).
   const seekAtClientX = (clientX: number) => {
     const el = timelineRef.current;
-    if (!el || videoClips.length === 0) return;
+    if (!el) return;
     const rect = el.getBoundingClientRect();
-    // Must match the playhead's own render position -- `calc(88px + frac *
-    // (100% - 198px))` below -- which insets 88px for the left track-label
-    // column and 110px for the right-side floating meter reserve. Without
-    // this the click-to-frac math used the FULL ruler width, so a click
-    // would seek to a visibly different x than where the playhead (and any
-    // later re-render at that same frac) actually appears.
-    const RULER_LEFT_INSET = 88;
-    const RULER_RIGHT_INSET = 110;
-    const contentWidth = rect.width - RULER_LEFT_INSET - RULER_RIGHT_INSET;
-    const frac = contentWidth > 0 ? Math.min(1, Math.max(0, (clientX - rect.left - RULER_LEFT_INSET) / contentWidth)) : 0;
-    const targetMasterTime = Math.min(videoTrackDuration, frac * timelineDuration);
-    setCurrentTime(targetMasterTime);
+    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    setPlayheadFrac(frac);
     const v = previewVideoRef.current;
-    const target = getClipAtMasterTime(videoClips, targetMasterTime);
-    if (!v || !target) return;
-    const wasPlaying = !v.paused;
-    if (activeVideoClip && target.clip.id === activeVideoClip.id) {
-      suppressMasterSyncRef.current = false;
-      v.currentTime = target.localTime;
-    } else {
-      nextLoadIsPlaybackRef.current = true;
-      pendingSeekSecRef.current = target.localTime;
-      resumePlayingRef.current = wasPlaying;
-      setSelectedSegmentId(target.clip.id);
-    }
+    if (v && Number.isFinite(v.duration) && v.duration > 0) v.currentTime = frac * v.duration;
   };
-  // A drag holds ONE `pointermove` listener registered on `window` for its
-  // entire duration (added below), but `seekAtClientX` itself is redefined
-  // every render, closing over that render's `activeVideoClip`/`videoClips`.
-  // If the listener captured `seekAtClientX` directly, it would keep calling
-  // the STALE closure from the render at pointerdown time for the whole
-  // drag -- harmless for a drag that stays within one clip, but once a drag
-  // crosses a clip boundary mid-gesture (a real clip-swap fires, updating
-  // `activeVideoClip`), every subsequent move in that same drag would still
-  // compare against the pre-swap clip, misjudge same-clip-vs-different-clip,
-  // and seek inside the WRONG (previous) clip instead of the new one.
-  // Routing through a ref that's re-synced after every render means the
-  // listener always calls the current render's version instead.
-  const seekAtClientXRef = useRef(seekAtClientX);
-  useEffect(() => {
-    seekAtClientXRef.current = seekAtClientX;
-  });
   const handleTimelinePointerDown = (e: React.PointerEvent) => {
-    seekAtClientXRef.current(e.clientX);
-    const handleMove = (ev: PointerEvent) => seekAtClientXRef.current(ev.clientX);
+    seekAtClientX(e.clientX);
+    const handleMove = (ev: PointerEvent) => seekAtClientX(ev.clientX);
     const handleUp = () => {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
@@ -996,14 +755,9 @@ export default function VideoEditorV2Page() {
   };
 
   // ---- Split at playhead ----
-  // splitClipsAt expects a fraction of THIS track's own total effective
-  // duration -- NOT the shared ruler's `playheadFrac`, which is scaled
-  // against `timelineDuration` (the longer of Video/Music) and would be
-  // wrong for whichever track is the shorter one whenever they differ.
   const handleSplitVideo = () => {
-    const videoPlayheadFrac = videoTrackDuration > 0 ? currentTime / videoTrackDuration : 0;
     const prev = videoClips;
-    const next = splitClipsAt(prev, videoPlayheadFrac, "v");
+    const next = splitClipsAt(prev, playheadFrac, "v");
     if (next === prev) return;
     const prevIds = new Set(prev.map((b) => b.id));
     const nextIds = new Set(next.map((b) => b.id));
@@ -1020,10 +774,7 @@ export default function VideoEditorV2Page() {
       setSelectedSegmentId(addedIds[0]);
     }
   };
-  const handleSplitMusic = () => {
-    const musicPlayheadFrac = musicTrackDuration > 0 ? currentTime / musicTrackDuration : 0;
-    setMusicClips((prev) => splitClipsAt(prev, musicPlayheadFrac, "m"));
-  };
+  const handleSplitMusic = () => setMusicClips((prev) => splitClipsAt(prev, playheadFrac, "m"));
 
   // ---- Segment context menu — a single LEFT-CLICK on any block (Video,
   // Music, Text, or Overlay) opens this, selecting/loading the block at the
@@ -1879,7 +1630,7 @@ export default function VideoEditorV2Page() {
             </button>
             <button type="button" onClick={handleNextFrame} title="Next frame" style={transportBtnStyle}>&#9197;</button>
             <span style={{ fontSize: 12, color: COLORS.textMuted, fontVariantNumeric: "tabular-nums" }}>
-              {formatTime(currentTime)} / {formatTime(videoTrackDuration)}
+              {formatTime(currentTime)} / {formatTime(duration)}
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
