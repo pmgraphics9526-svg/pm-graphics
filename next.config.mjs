@@ -125,6 +125,23 @@ const nextConfig = {
         ],
       },
       {
+        // The v2 multi-track editor prototype (/dev-tools/video-editing-v2)
+        // also renders real ffmpeg.wasm exports and needs the same isolation
+        // as /tools/:path* above. Scoped to this one dev-tools route (not
+        // all of /dev-tools/) so unrelated dev-tools pages aren't affected.
+        source: '/dev-tools/video-editing-v2/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+      {
         // Once COEP is active, every subresource the isolated page loads
         // must explicitly allow cross-origin loading. The ffmpeg core/wasm
         // files are same-origin, but CORP makes that explicit regardless

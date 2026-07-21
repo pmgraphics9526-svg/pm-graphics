@@ -78,7 +78,10 @@ export interface ExportTextOverlay {
 
 export type ExportAspectRatio = "16:9" | "9:16" | "1:1";
 
-const EXPORT_RESOLUTIONS: Record<ExportAspectRatio, { width: number; height: number }> = {
+// Exported (not just module-private) so lib/video-editor/export-v2.ts can
+// reuse it exactly as-is for the multi-track pipeline's own target canvas —
+// "reuse, don't rebuild" per that module's own top-of-file note.
+export const EXPORT_RESOLUTIONS: Record<ExportAspectRatio, { width: number; height: number }> = {
   "16:9": { width: 1280, height: 720 },
   "9:16": { width: 720, height: 1280 },
   "1:1": { width: 720, height: 720 },
@@ -121,8 +124,11 @@ async function fetchWithProgress(url: string, onChunk?: (loadedBytes: number) =>
   return new Blob(chunks as BlobPart[]);
 }
 
+// Exported so export-v2.ts shares the SAME module-scoped ffmpeg singleton
+// and loading/caching logic — the two pipelines are never used at the same
+// time (different pages), so there's nothing to gain from a second instance.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getFFmpeg(onLoadProgress?: (ratio: number) => void): Promise<any> {
+export async function getFFmpeg(onLoadProgress?: (ratio: number) => void): Promise<any> {
   if (ffmpegInstance) return ffmpegInstance;
   if (typeof window === "undefined") {
     throw new Error("FFmpeg can only be loaded in the browser context.");
@@ -189,7 +195,7 @@ async function getFFmpeg(onLoadProgress?: (ratio: number) => void): Promise<any>
 // Separate timeout from the load phase above, with its own clearly-labeled
 // message — so a hang during actual rendering is never confused with (or
 // reported as) a loading-phase failure, and vice versa.
-async function execWithTimeout(
+export async function execWithTimeout(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ffmpeg: any,
   args: string[],
@@ -225,12 +231,12 @@ export function buildAtempoChain(speed: number): string[] {
   return factors.map((f) => `atempo=${f.toFixed(4)}`);
 }
 
-function roundToEven(n: number): number {
+export function roundToEven(n: number): number {
   const r = Math.round(n);
   return r % 2 === 0 ? r : r + 1;
 }
 
-function escapeDrawtext(text: string): string {
+export function escapeDrawtext(text: string): string {
   return text
     .replace(/\\/g, "\\\\\\\\")
     .replace(/:/g, "\\:")
@@ -239,16 +245,16 @@ function escapeDrawtext(text: string): string {
     .replace(/\r?\n/g, " ");
 }
 
-function hexToDrawtextColor(hex: string): string {
+export function hexToDrawtextColor(hex: string): string {
   const clean = hex.replace("#", "");
   return clean.length === 6 || clean.length === 8 ? `0x${clean}` : "white";
 }
 
-function isDefaultCrop(c: CropRect): boolean {
+export function isDefaultCrop(c: CropRect): boolean {
   return c.x === 0 && c.y === 0 && c.width === 100 && c.height === 100;
 }
 
-function isDefaultColor(c: ColorGrade): boolean {
+export function isDefaultColor(c: ColorGrade): boolean {
   return c.brightness === 0 && c.contrast === 0 && c.saturation === 0;
 }
 
@@ -341,7 +347,7 @@ function buildSegmentVideoFilter(
  * the ffmpeg.on('log', ...) pattern already proven in ffmpegMix.ts, rather
  * than pulling in a separate ffprobe build. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function detectHasAudioStream(ffmpeg: any, inputName: string): Promise<boolean> {
+export async function detectHasAudioStream(ffmpeg: any, inputName: string): Promise<boolean> {
   let sawAudio = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const listener = ({ message }: any) => {

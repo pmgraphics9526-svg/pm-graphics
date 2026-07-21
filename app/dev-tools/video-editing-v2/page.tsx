@@ -23,20 +23,21 @@
  * model, since overlay items need explicit start/end seconds + x/y/width/
  * height placement, same as text.
  *
- * SCOPE OF THIS PHASE (explicit): correct visual structure + multi-item data
- * model for upload and timeline placement (add, see positioned correctly,
- * reorder, trim). The export pipeline does NOT yet understand these layers
- * together, so Export is disabled here with an explanatory tooltip rather
- * than silently producing a wrong/partial render — see the Export button's
- * `disabled`/`title`. Auto Edit is left as-is (deprioritized), pointed at
- * whichever video clip is currently selected/previewed.
+ * EXPORT: renders the full layered state (Video/Overlay/Text/Music, every
+ * per-clip crop/rotate/speed/color edit) to a real MP4 via ffmpeg.wasm — see
+ * lib/video-editor/export-v2.ts for the render pipeline itself; this file
+ * only gathers current state into its input shape and drives the progress
+ * modal (handleExportClick, below). Auto Edit is left as-is (deprioritized),
+ * pointed at whichever video clip is currently selected/previewed.
  *
  * STYLING: inline `style` props only, matching v1 — this project has no
  * Tailwind installed. COLORS token object copied from v1/auto-edit.
  */
 
 import Link from "next/link";
+import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
+import { exportVideoV2, type ExportV2ClipInput, type ExportV2VideoClipInput, type ExportV2OverlayInput, type ExportV2TextInput } from "@/lib/video-editor/export-v2";
 
 // ---- Design tokens (matches v1 / auto-edit/page.tsx) ----
 const COLORS = {
@@ -385,6 +386,14 @@ export default function VideoEditorV2Page() {
   const [autoEditError, setAutoEditError] = useState<string | null>(null);
   const [autoEditProgress, setAutoEditProgress] = useState(0);
   const [autoEditLabel, setAutoEditLabel] = useState("");
+
+  // ---- Export: real ffmpeg.wasm render of the full multi-track state ----
+  type ExportStage = "idle" | "loading" | "rendering" | "done" | "error";
+  const [exportStage, setExportStage] = useState<ExportStage>("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStageLabel, setExportStageLabel] = useState("");
+  const [exportResultUrl, setExportResultUrl] = useState<string | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -1259,7 +1268,93 @@ export default function VideoEditorV2Page() {
     }
   };
 
+  // ---- Export: render the full Video/Overlay/Text/Music state into a real
+  // downloadable MP4 via lib/video-editor/export-v2.ts ----
+  const handleExportClick = async () => {
+    if (videoClips.length === 0) return;
+    if (exportResultUrl) URL.revokeObjectURL(exportResultUrl);
+    setExportError(null);
+    setExportResultUrl(null);
+    setExportStage("loading");
+    setExportProgress(0);
+    setExportStageLabel("Loading export engine...");
+    try {
+      const exportVideoClips: ExportV2VideoClipInput[] = videoClips.map((c) => ({
+        id: c.id,
+        file: c.file,
+        url: c.url,
+        duration: c.duration,
+        sourceStartFrac: c.sourceStartFrac,
+        sourceEndFrac: c.sourceEndFrac,
+        trimStart: c.trimStart,
+        trimEnd: c.trimEnd,
+        edit: videoClipEdits[c.id] || DEFAULT_EDIT,
+      }));
+      const exportMusicClips: ExportV2ClipInput[] = musicClips.map((c) => ({
+        id: c.id,
+        file: c.file,
+        duration: c.duration,
+        sourceStartFrac: c.sourceStartFrac,
+        sourceEndFrac: c.sourceEndFrac,
+        trimStart: c.trimStart,
+        trimEnd: c.trimEnd,
+      }));
+      const exportOverlays: ExportV2OverlayInput[] = overlayItems.map((o) => ({
+        id: o.id,
+        type: o.type,
+        file: o.file,
+        startTime: o.startTime,
+        endTime: o.endTime,
+        x: o.x,
+        y: o.y,
+        width: o.width,
+        height: o.height,
+      }));
+      const exportTextOverlays: ExportV2TextInput[] = textOverlays.map((t) => ({
+        content: t.content,
+        x: t.x,
+        y: t.y,
+        fontSize: t.fontSize,
+        color: t.color,
+        startTime: t.startTime,
+        endTime: t.endTime,
+      }));
+
+      const blob = await exportVideoV2({
+        videoClips: exportVideoClips,
+        musicClips: exportMusicClips,
+        overlays: exportOverlays,
+        textOverlays: exportTextOverlays,
+        aspectRatio,
+        onLoadProgress: (ratio) => setExportProgress(Math.round(ratio * 30)),
+        onProgress: (ratio) => {
+          setExportStage("rendering");
+          setExportStageLabel("Rendering...");
+          setExportProgress(30 + Math.round(ratio * 70));
+        },
+        onStage: (label) => setExportStageLabel(label),
+      });
+      const url = URL.createObjectURL(blob);
+      setExportResultUrl(url);
+      setExportProgress(100);
+      setExportStage("done");
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed.");
+      setExportStage("error");
+    }
+  };
+
+  // Revoke the exported blob URL on unmount so it doesn't leak.
+  useEffect(() => {
+    return () => {
+      if (exportResultUrl) URL.revokeObjectURL(exportResultUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
+    <>
+    <Script src="/ffmpeg/ffmpeg.js" strategy="afterInteractive" />
     <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", backgroundColor: COLORS.bg, color: COLORS.textPrimary, overflow: "hidden" }}>
       {/* ---- Top bar ---- */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 20px", borderBottom: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.trackHeaderBg, flexShrink: 0 }}>
@@ -1286,9 +1381,20 @@ export default function VideoEditorV2Page() {
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"
-            disabled
-            title="Export doesn't yet understand the new multi-track model (Video + Overlay + Text + Music together) — deferred to a later phase, see top-of-file note."
-            style={{ borderRadius: 8, border: `1px solid ${COLORS.cardBorder}`, padding: "8px 14px", fontSize: 13, fontWeight: 600, background: "transparent", color: COLORS.textPrimary, opacity: 0.4, cursor: "not-allowed" }}
+            onClick={handleExportClick}
+            disabled={videoClips.length === 0 || exportStage !== "idle" || autoEditStage !== "idle"}
+            title={videoClips.length === 0 ? "Add a video clip first" : "Render the full Video + Overlay + Text + Music timeline to MP4"}
+            style={{
+              borderRadius: 8,
+              border: `1px solid ${COLORS.cardBorder}`,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              background: "transparent",
+              color: COLORS.textPrimary,
+              opacity: videoClips.length === 0 || exportStage !== "idle" || autoEditStage !== "idle" ? 0.4 : 1,
+              cursor: videoClips.length === 0 || exportStage !== "idle" || autoEditStage !== "idle" ? "not-allowed" : "pointer",
+            }}
           >
             &#8681; Export
           </button>
@@ -2033,6 +2139,58 @@ export default function VideoEditorV2Page() {
         </div>
       )}
 
+      {/* ---- Export overlay: real ffmpeg.wasm render of the full
+          multi-track state -> download ---- */}
+      {exportStage !== "idle" && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, borderRadius: 16, border: `1px solid ${COLORS.cardBorder}`, backgroundColor: COLORS.card, padding: 32 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 20px" }}>&#8681; Export</h2>
+
+            {(exportStage === "loading" || exportStage === "rendering") && (
+              <>
+                <p style={{ marginBottom: 16, fontSize: 14, color: COLORS.textMuted }}>
+                  {exportStageLabel} {exportProgress}%
+                </p>
+                <div style={{ height: 8, width: "100%", overflow: "hidden", borderRadius: 999, backgroundColor: COLORS.cardBorder }}>
+                  <div style={{ height: "100%", borderRadius: 999, width: `${exportProgress}%`, backgroundColor: COLORS.accent, transition: "width 300ms" }} />
+                </div>
+              </>
+            )}
+
+            {exportStage === "done" && exportResultUrl && (
+              <>
+                <p style={{ marginBottom: 16, fontSize: 14, color: COLORS.textMuted }}>Export complete.</p>
+                <video src={exportResultUrl} controls style={{ width: "100%", borderRadius: 6, marginBottom: 16, backgroundColor: "#000" }} />
+                <a
+                  href={exportResultUrl}
+                  download="exported-video.mp4"
+                  style={{ display: "block", textAlign: "center", padding: "10px 0", borderRadius: 8, backgroundColor: COLORS.accent, color: COLORS.accentText, fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 8 }}
+                >
+                  Download MP4
+                </a>
+                <button type="button" onClick={() => setExportStage("idle")} style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: `1px solid ${COLORS.cardBorder}`, background: "transparent", color: COLORS.textPrimary, fontSize: 13, cursor: "pointer" }}>
+                  Close
+                </button>
+              </>
+            )}
+
+            {exportStage === "error" && (
+              <>
+                <p style={{ marginBottom: 20, fontSize: 14, color: COLORS.danger }}>{exportError || "Something went wrong."}</p>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button type="button" onClick={() => setExportStage("idle")} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1px solid ${COLORS.cardBorder}`, background: "transparent", color: COLORS.textPrimary, fontSize: 13, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleExportClick} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", backgroundColor: COLORS.accent, color: COLORS.accentText, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Retry
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Hidden pickers for the context menu's "Replace" action. */}
       <input ref={replaceVideoInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={handleReplaceFileChosen} />
       <input ref={replaceMusicInputRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={handleReplaceFileChosen} />
@@ -2051,6 +2209,7 @@ export default function VideoEditorV2Page() {
         />
       )}
     </div>
+    </>
   );
 }
 
