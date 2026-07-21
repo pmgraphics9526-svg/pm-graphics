@@ -414,6 +414,15 @@ export default function VideoEditorV2Page() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const meterRafRef = useRef<number | null>(null);
   const replaceTargetRef = useRef<{ trackKind: TrackKind; id: string } | null>(null);
+  // Text/Overlay items move via a manually-managed pointerdown/move/up
+  // gesture (not native HTML5 draggable), which does NOT suppress the
+  // browser's own subsequent click event the way native drag does -- so
+  // every move-drag was also opening the click-to-edit menu right after,
+  // right on top of the block that had just moved. Set true only once
+  // movement crosses a small threshold (a plain click never trips it),
+  // checked once in onClick to skip that one menu-open, then reset.
+  const textDraggedRef = useRef(false);
+  const overlayDraggedRef = useRef(false);
 
   // ---- Derived "active" clip for each single-file-shaped track (the
   // preview shows/plays the SELECTED clip; clicking a block in the
@@ -614,38 +623,61 @@ export default function VideoEditorV2Page() {
   };
 
   // ---- Add clips (Media panel) ----
+  // All three accept `multiple` file selection -- Promise.all probes every
+  // file's duration in parallel but still builds the result array in
+  // SELECTION order (Promise.all preserves input order regardless of which
+  // duration resolves first), then appends the whole batch in one state
+  // update so multi-select adds every file as its own clip, not just the
+  // first.
   const handleAddVideoClip = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const dur = await probeMediaDuration(url, "video");
-    const id = `v-${Date.now()}`;
-    const clip: VideoClip = { id, file, url, duration: dur, sourceStartFrac: 0, sourceEndFrac: 1, trimStart: 0, trimEnd: 0, widthFrac: dur > 0 ? dur : 1, locked: false };
-    setVideoClips((prev) => [...prev, clip]);
-    setSelectedSegmentId(id);
+    if (files.length === 0) return;
+    const newClips = await Promise.all(
+      files.map(async (file, i) => {
+        const url = URL.createObjectURL(file);
+        const dur = await probeMediaDuration(url, "video");
+        const id = `v-${Date.now()}-${i}`;
+        const clip: VideoClip = { id, file, url, duration: dur, sourceStartFrac: 0, sourceEndFrac: 1, trimStart: 0, trimEnd: 0, widthFrac: dur > 0 ? dur : 1, locked: false };
+        return clip;
+      })
+    );
+    setVideoClips((prev) => [...prev, ...newClips]);
+    setSelectedSegmentId(newClips[newClips.length - 1].id);
   };
   const handleAddMusicClip = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const dur = await probeMediaDuration(url, "audio");
-    const id = `m-${Date.now()}`;
-    const clip: MusicClip = { id, file, url, duration: dur, sourceStartFrac: 0, sourceEndFrac: 1, trimStart: 0, trimEnd: 0, widthFrac: dur > 0 ? dur : 1, locked: false };
-    setMusicClips((prev) => [...prev, clip]);
-    setSelectedMusicId(id);
+    if (files.length === 0) return;
+    const newClips = await Promise.all(
+      files.map(async (file, i) => {
+        const url = URL.createObjectURL(file);
+        const dur = await probeMediaDuration(url, "audio");
+        const id = `m-${Date.now()}-${i}`;
+        const clip: MusicClip = { id, file, url, duration: dur, sourceStartFrac: 0, sourceEndFrac: 1, trimStart: 0, trimEnd: 0, widthFrac: dur > 0 ? dur : 1, locked: false };
+        return clip;
+      })
+    );
+    setMusicClips((prev) => [...prev, ...newClips]);
+    setSelectedMusicId(newClips[newClips.length - 1].id);
   };
   const handleAddOverlay = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const id = `o-${Date.now()}`;
+    if (files.length === 0) return;
+    // Overlay items are time-based, not array-sequential like Video/Music,
+    // so a multi-select batch needs its own placement: each item starts
+    // where the previous one in THIS batch ends (same "avoid full overlap"
+    // principle Duplicate already uses elsewhere), anchored at currentTime.
     const start = currentTime;
-    const overlay: OverlayItem = { id, type, file, url, startTime: start, endTime: start + 3, x: 50, y: 50, width: 30, height: 30, locked: false };
-    setOverlayItems((prev) => [...prev, overlay]);
-    setSelectedOverlayId(id);
+    const newItems: OverlayItem[] = files.map((file, i) => {
+      const url = URL.createObjectURL(file);
+      const id = `o-${Date.now()}-${i}`;
+      const itemStart = start + i * 3;
+      return { id, type, file, url, startTime: itemStart, endTime: itemStart + 3, x: 50, y: 50, width: 30, height: 30, locked: false };
+    });
+    setOverlayItems((prev) => [...prev, ...newItems]);
+    setSelectedOverlayId(newItems[newItems.length - 1].id);
     // Deliberately does NOT switch to the Overlay tab (unlike an earlier
     // draft) -- that unmounted the Media panel's own upload inputs,
     // blocking a second add without manually switching tabs back. Stays
@@ -672,15 +704,27 @@ export default function VideoEditorV2Page() {
   };
 
   // ---- Reorder within a track (drag/drop) ----
+  // Always inserting the dragged block immediately BEFORE the drop target is
+  // a no-op exactly when the dragged block is already the target's
+  // immediate predecessor -- i.e. the single most common reorder, swapping
+  // two adjacent clips, silently did nothing (this is what made drag look
+  // "stuck" for anyone testing with just two clips). Insert AFTER the
+  // target when dragging forward (dragged started earlier in the array)
+  // and BEFORE it when dragging backward, so the drop always lands past
+  // wherever the block used to be relative to the target -- standard
+  // reorderable-list behavior, and never a no-op for two distinct blocks.
   const handleVideoDrop = (targetId: string) => {
     if (!dragVideoId || dragVideoId === targetId) return;
     setVideoClips((prev) => {
-      const dragged = prev.find((b) => b.id === dragVideoId);
-      if (!dragged) return prev;
+      const draggedIdx = prev.findIndex((b) => b.id === dragVideoId);
+      const targetIdx = prev.findIndex((b) => b.id === targetId);
+      if (draggedIdx === -1 || targetIdx === -1) return prev;
+      const dragged = prev[draggedIdx];
       const without = prev.filter((b) => b.id !== dragVideoId);
-      const idx = without.findIndex((b) => b.id === targetId);
+      const targetIdxInWithout = without.findIndex((b) => b.id === targetId);
+      const insertAt = draggedIdx < targetIdx ? targetIdxInWithout + 1 : targetIdxInWithout;
       const next = [...without];
-      next.splice(idx, 0, dragged);
+      next.splice(insertAt, 0, dragged);
       return next;
     });
     setDragVideoId(null);
@@ -688,12 +732,15 @@ export default function VideoEditorV2Page() {
   const handleMusicDrop = (targetId: string) => {
     if (!dragMusicId || dragMusicId === targetId) return;
     setMusicClips((prev) => {
-      const dragged = prev.find((b) => b.id === dragMusicId);
-      if (!dragged) return prev;
+      const draggedIdx = prev.findIndex((b) => b.id === dragMusicId);
+      const targetIdx = prev.findIndex((b) => b.id === targetId);
+      if (draggedIdx === -1 || targetIdx === -1) return prev;
+      const dragged = prev[draggedIdx];
       const without = prev.filter((b) => b.id !== dragMusicId);
-      const idx = without.findIndex((b) => b.id === targetId);
+      const targetIdxInWithout = without.findIndex((b) => b.id === targetId);
+      const insertAt = draggedIdx < targetIdx ? targetIdxInWithout + 1 : targetIdxInWithout;
       const next = [...without];
-      next.splice(idx, 0, dragged);
+      next.splice(insertAt, 0, dragged);
       return next;
     });
     setDragMusicId(null);
@@ -1067,7 +1114,9 @@ export default function VideoEditorV2Page() {
     const startX = e.clientX;
     const span = overlay.endTime - overlay.startTime;
     const startTimeAtDown = overlay.startTime;
+    textDraggedRef.current = false;
     const handleMove = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - startX) > 3) textDraggedRef.current = true;
       const dxSec = ((ev.clientX - startX) / rowWidth) * timelineDuration;
       const newStart = Math.max(0, Math.min(timelineDuration - span, startTimeAtDown + dxSec));
       setTextOverlays((prev) => prev.map((t) => (t.id === id ? { ...t, startTime: newStart, endTime: newStart + span } : t)));
@@ -1137,7 +1186,9 @@ export default function VideoEditorV2Page() {
     const startX = e.clientX;
     const span = overlay.endTime - overlay.startTime;
     const startTimeAtDown = overlay.startTime;
+    overlayDraggedRef.current = false;
     const handleMove = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - startX) > 3) overlayDraggedRef.current = true;
       const dxSec = ((ev.clientX - startX) / rowWidth) * timelineDuration;
       const newStart = Math.max(0, Math.min(timelineDuration - span, startTimeAtDown + dxSec));
       setOverlayItems((prev) => prev.map((o) => (o.id === id ? { ...o, startTime: newStart, endTime: newStart + span } : o)));
@@ -1735,7 +1786,7 @@ export default function VideoEditorV2Page() {
                 >
                   + Add video clip
                 </button>
-                <input ref={videoInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={handleAddVideoClip} />
+                <input ref={videoInputRef} type="file" accept="video/*" multiple style={{ display: "none" }} onChange={handleAddVideoClip} />
               </MediaSection>
 
               <MediaSection title={`Overlay items (${overlayItems.length})`}>
@@ -1762,8 +1813,8 @@ export default function VideoEditorV2Page() {
                     + Video
                   </button>
                 </div>
-                <input ref={overlayImageInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAddOverlay(e, "image")} />
-                <input ref={overlayVideoInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => handleAddOverlay(e, "video")} />
+                <input ref={overlayImageInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => handleAddOverlay(e, "image")} />
+                <input ref={overlayVideoInputRef} type="file" accept="video/*" multiple style={{ display: "none" }} onChange={(e) => handleAddOverlay(e, "video")} />
               </MediaSection>
 
               <MediaSection title={`Music clips (${musicClips.length})`}>
@@ -1779,7 +1830,7 @@ export default function VideoEditorV2Page() {
                 >
                   + Add music clip
                 </button>
-                <input ref={musicInputRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={handleAddMusicClip} />
+                <input ref={musicInputRef} type="file" accept="audio/*" multiple style={{ display: "none" }} onChange={handleAddMusicClip} />
               </MediaSection>
             </>
           )}
@@ -1949,6 +2000,10 @@ export default function VideoEditorV2Page() {
                       key={t.id}
                       onPointerDown={startTextBlockMove(t.id)}
                       onClick={(e) => {
+                        if (textDraggedRef.current) {
+                          textDraggedRef.current = false;
+                          return;
+                        }
                         setSelectedTextId(t.id);
                         handleBlockContextMenu("text", t.id, e);
                       }}
@@ -2003,6 +2058,10 @@ export default function VideoEditorV2Page() {
                       key={o.id}
                       onPointerDown={startOverlayBlockMove(o.id)}
                       onClick={(e) => {
+                        if (overlayDraggedRef.current) {
+                          overlayDraggedRef.current = false;
+                          return;
+                        }
                         setSelectedOverlayId(o.id);
                         handleBlockContextMenu("overlay", o.id, e);
                       }}
@@ -2407,6 +2466,15 @@ function ClipBlockRow<T extends ClipBase>({
   rowHeight?: number;
   trackLocked?: boolean;
 }) {
+  // Native HTML5 drag-and-drop normally suppresses the browser's own click
+  // event for a recognized drag gesture -- but that suppression isn't
+  // guaranteed across every browser/input-device combination, and this
+  // click handler doubles as the menu-open trigger. This ref is a belt-and-
+  // suspenders guard: set on dragstart, checked (and cleared) on click, and
+  // cleared on dragend as a fallback for the normal case where no click
+  // follows at all -- so a real drag can never be misread as a click that
+  // pops the menu open over the block the user just moved.
+  const justDraggedRef = useRef(false);
   return (
     <div style={{ display: "flex", height: rowHeight, width: "100%" }}>
       {blocks.map((b) => {
@@ -2415,13 +2483,24 @@ function ClipBlockRow<T extends ClipBase>({
         <div
           key={b.id}
           draggable={!effLocked}
-          onDragStart={() => !effLocked && onDragStart(b.id)}
+          onDragStart={() => {
+            if (effLocked) return;
+            justDraggedRef.current = true;
+            onDragStart(b.id);
+          }}
+          onDragEnd={() => {
+            justDraggedRef.current = false;
+          }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.stopPropagation();
             if (!effLocked) onDrop(b.id);
           }}
           onClick={(e) => {
+            if (justDraggedRef.current) {
+              justDraggedRef.current = false;
+              return;
+            }
             onSelect?.(b.id);
             onContextMenu?.(b.id, e);
           }}
