@@ -408,6 +408,14 @@ function applyTrim<T extends ClipBase>(clip: T, id: string, side: "start" | "end
   return { ...clip, trimEnd: Math.min(0.4, Math.max(0, clip.trimEnd + delta)) };
 }
 
+// Pure check mirroring applyTrim's own clamp bounds -- used purely to drive
+// the "hit the limit" visual cue, never to recompute the actual trim value
+// (that stays exactly as applyTrim already does it).
+function isTrimClamped<T extends ClipBase>(clip: T, side: "start" | "end", delta: number): boolean {
+  const raw = side === "start" ? clip.trimStart + delta : clip.trimEnd + delta;
+  return Math.min(0.4, Math.max(0, raw)) !== raw;
+}
+
 // Removes a clip by id, revoking its object URL — UNLESS another remaining
 // clip still shares that same URL (true right after a Split, where both
 // halves point at the same source file; revoking then would break the
@@ -512,6 +520,13 @@ export default function VideoEditorV2Page() {
   // checked once in onClick to skip that one menu-open, then reset.
   const textDraggedRef = useRef(false);
   const overlayDraggedRef = useRef(false);
+
+  // Which block (Text or Overlay -- ids are unique across both, and only
+  // one reposition-drag can be in flight at a time) is currently pinned
+  // against its start/end boundary while being dragged, if any -- purely
+  // to show a brief "hit the limit" outline on that block, cleared as soon
+  // as the drag moves off the boundary or ends.
+  const [repositionClampedId, setRepositionClampedId] = useState<string | null>(null);
 
   // ---- Master-timeline playback refs ----
   // `selectedSegmentId` still drives which clip's file is loaded into the
@@ -1012,11 +1027,20 @@ export default function VideoEditorV2Page() {
   };
 
   // ---- Trim (drag edge handle) ----
-  const trimVideoClip = (id: string, side: "start" | "end", delta: number) => {
+  // Both return whether THIS delta was clamped -- purely so TrimHandle can
+  // show a brief "hit the limit" cue on the edge being dragged; the actual
+  // applied value is still computed exactly as before, by applyTrim below.
+  const trimVideoClip = (id: string, side: "start" | "end", delta: number): boolean => {
+    const clip = videoClips.find((c) => c.id === id);
+    const clamped = clip ? isTrimClamped(clip, side, delta) : false;
     setVideoClips((prev) => prev.map((b) => applyTrim(b, id, side, delta)));
+    return clamped;
   };
-  const trimMusicClip = (id: string, side: "start" | "end", delta: number) => {
+  const trimMusicClip = (id: string, side: "start" | "end", delta: number): boolean => {
+    const clip = musicClips.find((c) => c.id === id);
+    const clamped = clip ? isTrimClamped(clip, side, delta) : false;
     setMusicClips((prev) => prev.map((b) => applyTrim(b, id, side, delta)));
+    return clamped;
   };
 
   // ---- Split at playhead ----
@@ -1391,19 +1415,28 @@ export default function VideoEditorV2Page() {
     const handleMove = (ev: PointerEvent) => {
       if (Math.abs(ev.clientX - startX) > 3) textDraggedRef.current = true;
       const dxSec = ((ev.clientX - startX) / rowWidth) * timelineDuration;
-      const newStart = Math.max(0, Math.min(timelineDuration - span, startTimeAtDown + dxSec));
+      const rawTarget = startTimeAtDown + dxSec;
+      const newStart = Math.max(0, Math.min(timelineDuration - span, rawTarget));
+      setRepositionClampedId(newStart !== rawTarget ? id : null);
       setTextOverlays((prev) => prev.map((t) => (t.id === id ? { ...t, startTime: newStart, endTime: newStart + span } : t)));
     };
     const handleUp = () => {
+      setRepositionClampedId(null);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
   };
-  const resizeTextEdge = (id: string, side: "start" | "end", deltaFraction: number) => {
-    if (timelineDuration <= 0) return;
+  const resizeTextEdge = (id: string, side: "start" | "end", deltaFraction: number): boolean => {
+    if (timelineDuration <= 0) return false;
     const deltaSec = deltaFraction * timelineDuration;
+    const t0 = textOverlays.find((t) => t.id === id);
+    const clamped = t0
+      ? side === "start"
+        ? Math.min(t0.endTime - MIN_TEXT_DURATION, Math.max(0, t0.startTime + deltaSec)) !== t0.startTime + deltaSec
+        : Math.max(t0.startTime + MIN_TEXT_DURATION, Math.min(timelineDuration, t0.endTime + deltaSec)) !== t0.endTime + deltaSec
+      : false;
     setTextOverlays((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t;
@@ -1415,6 +1448,7 @@ export default function VideoEditorV2Page() {
         return { ...t, endTime: next };
       })
     );
+    return clamped;
   };
 
   // ---- Overlay items: same drag-to-shift / edge-handle-to-trim gestures
@@ -1463,19 +1497,28 @@ export default function VideoEditorV2Page() {
     const handleMove = (ev: PointerEvent) => {
       if (Math.abs(ev.clientX - startX) > 3) overlayDraggedRef.current = true;
       const dxSec = ((ev.clientX - startX) / rowWidth) * timelineDuration;
-      const newStart = Math.max(0, Math.min(timelineDuration - span, startTimeAtDown + dxSec));
+      const rawTarget = startTimeAtDown + dxSec;
+      const newStart = Math.max(0, Math.min(timelineDuration - span, rawTarget));
+      setRepositionClampedId(newStart !== rawTarget ? id : null);
       setOverlayItems((prev) => prev.map((o) => (o.id === id ? { ...o, startTime: newStart, endTime: newStart + span } : o)));
     };
     const handleUp = () => {
+      setRepositionClampedId(null);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
   };
-  const resizeOverlayEdge = (id: string, side: "start" | "end", deltaFraction: number) => {
-    if (timelineDuration <= 0) return;
+  const resizeOverlayEdge = (id: string, side: "start" | "end", deltaFraction: number): boolean => {
+    if (timelineDuration <= 0) return false;
     const deltaSec = deltaFraction * timelineDuration;
+    const o0 = overlayItems.find((o) => o.id === id);
+    const clamped = o0
+      ? side === "start"
+        ? Math.min(o0.endTime - MIN_OVERLAY_DURATION, Math.max(0, o0.startTime + deltaSec)) !== o0.startTime + deltaSec
+        : Math.max(o0.startTime + MIN_OVERLAY_DURATION, Math.min(timelineDuration, o0.endTime + deltaSec)) !== o0.endTime + deltaSec
+      : false;
     setOverlayItems((prev) =>
       prev.map((o) => {
         if (o.id !== id) return o;
@@ -1487,6 +1530,7 @@ export default function VideoEditorV2Page() {
         return { ...o, endTime: next };
       })
     );
+    return clamped;
   };
 
   // ---- Auto Edit: unchanged flow from v1, just gated on the currently
@@ -2290,7 +2334,7 @@ export default function VideoEditorV2Page() {
                         borderRadius: 4,
                         backgroundColor: COLORS.textTrackAccent,
                         opacity: (selectedTextId === t.id ? 0.95 : 0.75) - (effLocked ? 0.2 : 0),
-                        outline: selectedTextId === t.id ? `2px solid ${COLORS.textPrimary}` : "none",
+                        outline: repositionClampedId === t.id ? `2px solid ${COLORS.danger}` : selectedTextId === t.id ? `2px solid ${COLORS.textPrimary}` : "none",
                         outlineOffset: -2,
                         display: "flex",
                         alignItems: "center",
@@ -2348,7 +2392,7 @@ export default function VideoEditorV2Page() {
                         borderRadius: 4,
                         backgroundColor: COLORS.overlayTrackAccent,
                         opacity: (selectedOverlayId === o.id ? 0.95 : 0.75) - (effLocked ? 0.2 : 0),
-                        outline: selectedOverlayId === o.id ? `2px solid ${COLORS.textPrimary}` : "none",
+                        outline: repositionClampedId === o.id ? `2px solid ${COLORS.danger}` : selectedOverlayId === o.id ? `2px solid ${COLORS.textPrimary}` : "none",
                         outlineOffset: -2,
                         display: "flex",
                         alignItems: "center",
@@ -2730,7 +2774,7 @@ function ClipBlockRow<T extends ClipBase>({
   dragId: string | null;
   onDragStart: (id: string | null) => void;
   onDrop: (targetId: string) => void;
-  onTrim: (id: string, side: "start" | "end", delta: number) => void;
+  onTrim: (id: string, side: "start" | "end", delta: number) => boolean;
   onContextMenu?: (id: string, e: React.MouseEvent) => void;
   renderContent: (block: T) => React.ReactNode;
   selectedId?: string | null;
@@ -2838,18 +2882,30 @@ function VideoClipContent({ clip }: { clip: ClipBase }) {
   );
 }
 
-function TrimHandle({ side, onDrag }: { side: "left" | "right"; onDrag: (deltaFraction: number) => void }) {
+function TrimHandle({ side, onDrag }: { side: "left" | "right"; onDrag: (deltaFraction: number) => boolean }) {
   const startX = useRef<number | null>(null);
+  // Briefly highlighted while a drag is pinned against its min/max trim
+  // bound -- purely visual, cleared as soon as the delta stops being
+  // clamped (moving back the other way) or the drag ends.
+  const [isClamped, setIsClamped] = useState(false);
   const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
+    // Also suppress the default action -- stopPropagation alone still lets
+    // the draggable=true PARENT block's own native HTML5 drag gesture
+    // recognize this as a drag-to-reorder start once the pointer moves,
+    // which steals the pointer sequence away from the window listeners
+    // below (no further pointermove/pointerup ever arrives here).
+    e.preventDefault();
     startX.current = e.clientX;
     const handleMove = (ev: PointerEvent) => {
       if (startX.current === null) return;
       const delta = (ev.clientX - startX.current) / 400;
-      onDrag(side === "left" ? -delta : delta);
+      const clamped = onDrag(side === "left" ? -delta : delta);
+      setIsClamped(clamped);
       startX.current = ev.clientX;
     };
     const handleUp = () => {
+      setIsClamped(false);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
@@ -2861,8 +2917,8 @@ function TrimHandle({ side, onDrag }: { side: "left" | "right"; onDrag: (deltaFr
       onPointerDown={handlePointerDown}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
-      style={{ position: "absolute", [side]: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", backgroundColor: "rgba(0,0,0,0.25)" } as React.CSSProperties}
-      title="Drag to trim"
+      style={{ position: "absolute", [side]: 0, top: 0, bottom: 0, width: 6, cursor: isClamped ? "not-allowed" : "ew-resize", backgroundColor: isClamped ? COLORS.danger : "rgba(0,0,0,0.25)" } as React.CSSProperties}
+      title={isClamped ? "No more room to trim" : "Drag to trim"}
     />
   );
 }
@@ -2871,9 +2927,11 @@ function TrimHandle({ side, onDrag }: { side: "left" | "right"; onDrag: (deltaFr
 // reports a 0-1 fraction of the row's own pixel width (found via
 // `rowSelector`) rather than a fixed sensitivity divisor — the caller
 // converts that fraction to a time delta using the clip duration.
-function EdgeHandle({ side, rowSelector, onDrag }: { side: "left" | "right"; rowSelector: string; onDrag: (deltaFraction: number) => void }) {
+function EdgeHandle({ side, rowSelector, onDrag }: { side: "left" | "right"; rowSelector: string; onDrag: (deltaFraction: number) => boolean }) {
   const startX = useRef<number | null>(null);
   const rowWidth = useRef(0);
+  // Same "hit the limit" cue as TrimHandle, above.
+  const [isClamped, setIsClamped] = useState(false);
   const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     startX.current = e.clientX;
@@ -2882,10 +2940,12 @@ function EdgeHandle({ side, rowSelector, onDrag }: { side: "left" | "right"; row
     const handleMove = (ev: PointerEvent) => {
       if (startX.current === null || rowWidth.current <= 0) return;
       const deltaFraction = (ev.clientX - startX.current) / rowWidth.current;
-      onDrag(deltaFraction);
+      const clamped = onDrag(deltaFraction);
+      setIsClamped(clamped);
       startX.current = ev.clientX;
     };
     const handleUp = () => {
+      setIsClamped(false);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
@@ -2897,8 +2957,8 @@ function EdgeHandle({ side, rowSelector, onDrag }: { side: "left" | "right"; row
       onPointerDown={handlePointerDown}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
-      style={{ position: "absolute", [side]: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", backgroundColor: "rgba(0,0,0,0.25)" } as React.CSSProperties}
-      title="Drag to adjust timing"
+      style={{ position: "absolute", [side]: 0, top: 0, bottom: 0, width: 6, cursor: isClamped ? "not-allowed" : "ew-resize", backgroundColor: isClamped ? COLORS.danger : "rgba(0,0,0,0.25)" } as React.CSSProperties}
+      title={isClamped ? "No more room to adjust" : "Drag to adjust timing"}
     />
   );
 }
