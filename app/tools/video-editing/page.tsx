@@ -715,23 +715,32 @@ export default function VideoEditorV2Page() {
 
   // ---- Transport controls ----
   const FRAME_SEC = 1 / 30;
+  // Shared by the Play button AND the native `onPlay` safety net below: the
+  // loaded clip might not match the saved master position if the user
+  // clicked a different clip purely to edit it in the meantime (that never
+  // touches `currentTime`), or simply because uploading a clip auto-selects
+  // it for editing, leaving the LAST-uploaded clip loaded even though
+  // master playback should resume from an earlier one (e.g. right after
+  // adding several clips, before ever pressing Play). Returns true if it
+  // kicked off a clip swap (caller should NOT call v.play() itself -- the
+  // swap's own onLoadedMetadata handshake resumes playback once loaded).
+  const reconcileActiveClipForPlayback = (): boolean => {
+    const target = getClipAtMasterTime(videoClips, currentTime);
+    if (target && activeVideoClip && target.clip.id !== activeVideoClip.id) {
+      nextLoadIsPlaybackRef.current = true;
+      pendingSeekSecRef.current = target.localTime;
+      resumePlayingRef.current = true;
+      setSelectedSegmentId(target.clip.id);
+      return true;
+    }
+    return false;
+  };
   const handlePlayPause = () => {
     const v = previewVideoRef.current;
     if (!v) return;
     if (v.paused) {
       ensureAudioGraph();
-      // Resuming: the loaded clip might not match the saved master
-      // position if the user clicked a different clip purely to edit it
-      // in the meantime (that never touches `currentTime`) -- reload the
-      // right clip+offset first rather than resuming from wherever the
-      // edit-preview happened to leave the <video> element.
-      const target = getClipAtMasterTime(videoClips, currentTime);
-      if (target && activeVideoClip && target.clip.id !== activeVideoClip.id) {
-        nextLoadIsPlaybackRef.current = true;
-        pendingSeekSecRef.current = target.localTime;
-        resumePlayingRef.current = true;
-        setSelectedSegmentId(target.clip.id);
-      } else {
+      if (!reconcileActiveClipForPlayback()) {
         suppressMasterSyncRef.current = false;
         v.play();
       }
@@ -739,6 +748,21 @@ export default function VideoEditorV2Page() {
     } else {
       v.pause();
       musicElRef.current?.pause();
+    }
+  };
+  // Safety net for any path that starts playback WITHOUT going through the
+  // Play button above -- e.g. Chrome auto-registers OS/hardware media-key
+  // controls (MediaSession API) for any playing <video>, which call the
+  // element's native .play() directly. Without this, such a play would just
+  // continue playing whichever clip happened to already be loaded (often
+  // the last-uploaded one) instead of resuming the master-timeline
+  // position, silently "stuck" on a single clip for the rest of playback.
+  const handleVideoPlay = () => {
+    setIsPlaying(true);
+    const v = previewVideoRef.current;
+    if (!v) return;
+    if (reconcileActiveClipForPlayback()) {
+      v.pause();
     }
   };
   const handlePrevFrame = () => {
@@ -1758,7 +1782,7 @@ export default function VideoEditorV2Page() {
                   transform: `rotate(${currentEdit.rotation}deg) scaleX(${currentEdit.flipH ? -1 : 1}) scaleY(${currentEdit.flipV ? -1 : 1})`,
                   filter: colorFilterCss(currentEdit.color),
                 }}
-                onPlay={() => setIsPlaying(true)}
+                onPlay={handleVideoPlay}
                 onPause={() => setIsPlaying(false)}
                 onEnded={handleVideoEnded}
                 onTimeUpdate={handleTimeUpdate}
@@ -2704,7 +2728,7 @@ function ClipBlockRow<T extends ClipBase>({
 }: {
   blocks: T[];
   dragId: string | null;
-  onDragStart: (id: string) => void;
+  onDragStart: (id: string | null) => void;
   onDrop: (targetId: string) => void;
   onTrim: (id: string, side: "start" | "end", delta: number) => void;
   onContextMenu?: (id: string, e: React.MouseEvent) => void;
@@ -2739,6 +2763,14 @@ function ClipBlockRow<T extends ClipBase>({
           }}
           onDragEnd={() => {
             justDraggedRef.current = false;
+            // dragend ALWAYS fires, whether or not a valid drop landed --
+            // onDrop's own reset (below/in the parent) only covers the
+            // successful-reorder case, so without this a drop that lands
+            // back on the SAME block (dragId === targetId, the only
+            // possible outcome with just one clip in the track) or outside
+            // any valid target left `dragId` permanently set, pinning this
+            // block's opacity at the "being dragged" 0.4 forever.
+            onDragStart(null);
           }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
