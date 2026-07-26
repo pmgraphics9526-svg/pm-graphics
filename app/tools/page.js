@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Palette, Type, Shapes, LayoutGrid, Music, Scissors, Sparkles, Mic2, Video } from "lucide-react";
+import { Palette, Type, Shapes, LayoutGrid, Music, Scissors, Sparkles, Mic2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import WhatsAppCTA from "@/components/music-mixer/WhatsAppCTA";
 import "./tools.css"; // Import new stylesheet
@@ -62,15 +62,6 @@ const audioTools = [
   }
 ];
 
-const videoTools = [
-  {
-    title: "Video Editing",
-    description: "Trim, crop, add text, and export your videos — plus AI-powered auto-editing.",
-    icon: <Video size={20} />,
-    href: "/tools/video-editing"
-  }
-];
-
 function ToolCard({ tool }) {
   return (
     <div className="tool-card-ui">
@@ -123,18 +114,6 @@ export default function ToolsHubPage() {
           </div>
           <div className="tools-grid">
             {designTools.map(tool => (
-              <ToolCard key={tool.title} tool={tool} />
-            ))}
-          </div>
-        </section>
-
-        <section className="tools-section">
-          <div className="section-header">
-            <span className="dot"></span>
-            <h2>Video</h2>
-          </div>
-          <div className="tools-grid">
-            {videoTools.map(tool => (
               <ToolCard key={tool.title} tool={tool} />
             ))}
           </div>
