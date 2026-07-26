@@ -173,6 +173,15 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/tools/video-editing',
+        destination: '/tools',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
